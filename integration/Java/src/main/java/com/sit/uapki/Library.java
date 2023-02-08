@@ -69,8 +69,8 @@ public final class Library {
             LoaderLibFromResource loader = new LoaderLibFromResource();
 
             //  Warning: here need order
-            loader.load("uapkic", "2.0.0");
-            loader.load("uapkif", "2.0.0");
+            loader.load("uapkic", "2.0.8");
+            loader.load("uapkif", "2.0.8");
             loader.load("uapki", null);
             
             //  Load cm-providers
@@ -136,34 +136,36 @@ public final class Library {
             else libExt = EXT_SO;
             debugLog(" resPath: '" + resPath + "'\n libPrefix: '" + libPrefix + "'\n libExt: '" + libExt + "'");
         }
-        
-        void load (String libName, String version) throws IOException {
-            try {
-                String file_ext = libExt;
-                if (version != null) {
-                    if (libExt == EXT_SO) {
-                        file_ext = libExt + '.' + version;
-                    }
-                    else if (libExt == EXT_DYLIB) {
-                        file_ext = '.' + version + libExt;
-                    }
-                }
-                final String filename = libPrefix + libName + file_ext;
 
-                // Have to use a stream
-                debugLog("Load from resource: '" + (resPath + filename) + "'");
-                InputStream in = getClass().getResourceAsStream(resPath + filename);
-                // Always write to different location
-                File tmp_file = new File(System.getProperty("java.io.tmpdir") + "/uapki/" + filename);
-                OutputStream out = FileUtils.openOutputStream(tmp_file);
-                IOUtils.copy(in, out);
-                in.close();
-                out.close();
-                System.load(tmp_file.toString());
-                debugLog("Loaded from tmp: '" + tmp_file.toString() + "'");
-            }
-            catch (java.lang.UnsatisfiedLinkError e) {
-                System.out.println("LoaderLibFromResource.load: " + e.getMessage());
+        void load(String libName, String version) throws IOException {
+            if (Platform.isAndroid()) {
+                System.loadLibrary(libName);
+            } else {
+                try {
+                    String file_ext = libExt;
+                    if (version != null) {
+                        if (libExt == EXT_SO) {
+                            file_ext = libExt + '.' + version;
+                        } else if (libExt == EXT_DYLIB) {
+                            file_ext = '.' + version + libExt;
+                        }
+                    }
+                    final String filename = libPrefix + libName + file_ext;
+
+                    // Have to use a stream
+                    debugLog("Load from resource: '" + (resPath + filename) + "'");
+                    InputStream in = getClass().getResourceAsStream(resPath + filename);
+                    // Always write to different location
+                    File tmp_file = new File(System.getProperty("java.io.tmpdir") + "/uapki/" + filename);
+                    OutputStream out = FileUtils.openOutputStream(tmp_file);
+                    IOUtils.copy(in, out);
+                    in.close();
+                    out.close();
+                    System.load(tmp_file.toString());
+                    debugLog("Loaded from tmp: '" + tmp_file.toString() + "'");
+                } catch (java.lang.UnsatisfiedLinkError e) {
+                    System.out.println("LoaderLibFromResource.load: " + e.getMessage());
+                }
             }
         }
     }

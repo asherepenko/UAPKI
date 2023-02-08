@@ -1,7 +1,7 @@
-cmake_minimum_required(VERSION 3.05)
+cmake_minimum_required(VERSION 3.17)
 
 project(uapkic LANGUAGES C)
-set(UAPKIC_VERSION 2.0.0)
+set(UAPKIC_VERSION 2.0.8)
 message(STATUS "Project: uapkic, version: " ${UAPKIC_VERSION})
 
 if(NOT CMAKE_BUILD_TYPE)
@@ -30,6 +30,14 @@ include_directories(
     ${PATH_PRJ}/include
 )
 
+if(${ANDROID})
+    add_library(iconv STATIC IMPORTED)
+    set_target_properties(iconv PROPERTIES 
+        IMPORTED_LOCATION ${PATH_PRJ}/../libs/iconv/android_${ANDROID_ABI}/lib/libiconv.a
+        INTERFACE_INCLUDE_DIRECTORIES ${PATH_PRJ}/../libs/iconv/include
+    )
+endif()
+
 aux_source_directory(${PATH_PRJ}/src UAPKIC_SOURCES)
 
 add_library(uapkic SHARED
@@ -44,15 +52,20 @@ target_compile_definitions(uapkic PRIVATE UAPKIC_SELF_TEST)
 if(${WIN32})
     target_compile_definitions(uapkic PRIVATE NOCRYPT)
     target_compile_definitions(uapkic PRIVATE _CRT_SECURE_NO_WARNINGS)
-else()
-    target_link_libraries(uapkic PRIVATE pthread)
-    if(${APPLE})
-        target_link_libraries(uapkic PRIVATE iconv)
-    endif()
 endif()
 
+if(${ANDROID})
+    target_link_libraries(uapkic PRIVATE iconv)
+else()
+    target_link_libraries(uapkic PRIVATE pthread)
+endif()
+if(${APPLE})
+    target_link_libraries(uapkic PRIVATE iconv)
+endif()
 
-add_custom_command(TARGET uapkic POST_BUILD
-    COMMAND ${CMAKE_COMMAND} -E copy $<TARGET_FILE:uapkic> ../out/
-    COMMAND ${CMAKE_COMMAND} -E copy $<TARGET_FILE:uapkic> ../../${OUT_DIR}/
-)
+if(NOT ${ANDROID})
+    add_custom_command(TARGET uapkic POST_BUILD
+        COMMAND ${CMAKE_COMMAND} -E copy $<TARGET_FILE:uapkic> ../out/
+        COMMAND ${CMAKE_COMMAND} -E copy $<TARGET_FILE:uapkic> ../../${OUT_DIR}/
+    )
+endif()

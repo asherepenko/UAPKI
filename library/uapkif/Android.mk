@@ -80,6 +80,8 @@ SRC_STRUCT_FILES := \
 	$(DIR_SRC_STRUCT)/AdministrationDomainName.c \
 	$(DIR_SRC_STRUCT)/AlgorithmIdentifier.c \
 	$(DIR_SRC_STRUCT)/AlgorithmIdentifiers.c \
+	$(DIR_SRC_STRUCT)/ATSHashIndexDefault.c \
+	$(DIR_SRC_STRUCT)/ATSHashIndexFull.c \
 	$(DIR_SRC_STRUCT)/AttCertIssuer.c \
 	$(DIR_SRC_STRUCT)/AttCertValidityPeriod.c \
 	$(DIR_SRC_STRUCT)/AttCertVersion.c \
@@ -289,7 +291,6 @@ SRC_STRUCT_FILES := \
 	$(DIR_SRC_STRUCT)/SignerIdentifierEx.c \
 	$(DIR_SRC_STRUCT)/SignerIdentifierIm.c \
 	$(DIR_SRC_STRUCT)/SignerInfo.c \
-	$(DIR_SRC_STRUCT)/SignerInfoEx.c \
 	$(DIR_SRC_STRUCT)/SignerInfos.c \
 	$(DIR_SRC_STRUCT)/SigningCertificateV2.c \
 	$(DIR_SRC_STRUCT)/SigPolicyHash.c \

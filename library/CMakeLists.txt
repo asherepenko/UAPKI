@@ -1,4 +1,4 @@
-cmake_minimum_required(VERSION 3.05)
+cmake_minimum_required(VERSION 3.17)
 
 project(uapki LANGUAGES C)
 
@@ -122,5 +122,8 @@ add_subdirectory (uapkic)
 add_subdirectory (uapkif)
 add_subdirectory (uapki)
 add_subdirectory (cm-pkcs12)
-add_subdirectory (test)
-add_subdirectory (hostapp)
+
+if(NOT ${ANDROID})
+    add_subdirectory (test)
+    add_subdirectory (hostapp)
+endif()

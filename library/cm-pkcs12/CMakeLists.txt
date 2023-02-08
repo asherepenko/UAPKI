@@ -1,4 +1,4 @@
-cmake_minimum_required(VERSION 3.05)
+cmake_minimum_required(VERSION 3.17)
 
 project(cm-pkcs12 LANGUAGES C CXX)
 
@@ -47,6 +47,15 @@ include_directories(
 
 link_directories(${CMAKE_CURRENT_SOURCE_DIR}/../build)
 
+if(${ANDROID})
+    # include_directories(${PATH_PRJ}/../libs/iconv/include)
+    add_library(iconv STATIC IMPORTED)
+    set_target_properties(iconv PROPERTIES 
+        IMPORTED_LOCATION ${PATH_PRJ}/../libs/iconv/android_${ANDROID_ABI}/lib/libiconv.a
+        INTERFACE_INCLUDE_DIRECTORIES ${PATH_PRJ}/../libs/iconv/include
+    )
+endif()
+
 aux_source_directory(${PATH_PRJ}/src CMP12_SRC_SOURCES)
 aux_source_directory(${PATH_PRJ}/src/crypto CMP12_CRYPTO_SOURCES)
 aux_source_directory(${PATH_PRJ}/src/storage CMP12_STORAGE_SOURCES)
@@ -81,12 +90,17 @@ if(${WIN32})
 endif()
 
 target_link_libraries(cm-pkcs12 PRIVATE uapkic uapkif)
+
+if(${ANDROID})
+    target_link_libraries(cm-pkcs12 PRIVATE iconv)
+endif()
 if(${APPLE})
     target_link_libraries(cm-pkcs12 PRIVATE iconv)
 endif()
 
-
-add_custom_command(TARGET cm-pkcs12 POST_BUILD
-    COMMAND ${CMAKE_COMMAND} -E copy $<TARGET_FILE:cm-pkcs12> ../out/
-    COMMAND ${CMAKE_COMMAND} -E copy $<TARGET_FILE:cm-pkcs12> ../../${OUT_DIR}/
-)
+if(NOT ${ANDROID})
+    add_custom_command(TARGET cm-pkcs12 POST_BUILD
+        COMMAND ${CMAKE_COMMAND} -E copy $<TARGET_FILE:cm-pkcs12> ../out/
+        COMMAND ${CMAKE_COMMAND} -E copy $<TARGET_FILE:cm-pkcs12> ../../${OUT_DIR}/
+    )
+endif()
