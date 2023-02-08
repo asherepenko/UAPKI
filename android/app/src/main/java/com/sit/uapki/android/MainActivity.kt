@@ -3,7 +3,7 @@ package com.sit.uapki.android
 import android.os.Bundle
 import androidx.appcompat.app.AppCompatActivity
 import com.sit.uapki.Library
-import ua.mil.uapki.databinding.ActivityMainBinding
+import com.sit.uapki.android.databinding.ActivityMainBinding
 
 class MainActivity : AppCompatActivity() {
 
