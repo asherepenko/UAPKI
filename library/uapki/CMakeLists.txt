@@ -25,8 +25,6 @@ if(${WIN32})
     set(CMAKE_ARCHIVE_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR})
 endif()
 
-find_package(CURL REQUIRED)
-
 set(PATH_PRJ ${CMAKE_CURRENT_SOURCE_DIR})
 set(PATH_UAPKIC ${PATH_PRJ}/../uapkic)
 set(PATH_UAPKIF ${PATH_PRJ}/../uapkif)
@@ -52,6 +50,22 @@ include_directories(
 
 link_directories(${CMAKE_CURRENT_SOURCE_DIR}/../out)
 
+if(${ANDROID})
+    add_library(curl STATIC IMPORTED)
+    set_target_properties(curl PROPERTIES 
+        IMPORTED_LOCATION ${PATH_PRJ}/../libs/curl/android_${ANDROID_ABI}/lib/libcurl.a
+        INTERFACE_INCLUDE_DIRECTORIES ${PATH_PRJ}/../libs/curl/include
+    )
+
+    add_library(iconv STATIC IMPORTED)
+    set_target_properties(iconv PROPERTIES 
+        IMPORTED_LOCATION ${PATH_PRJ}/../libs/iconv/android_${ANDROID_ABI}/lib/libiconv.a
+        INTERFACE_INCLUDE_DIRECTORIES ${PATH_PRJ}/../libs/iconv/include
+    )
+else()
+    find_package(CURL REQUIRED)
+endif()
+
 aux_source_directory(${PATH_PRJ}/src/api UAPKI_API_SOURCES)
 aux_source_directory(${PATH_PRJ}/src UAPKI_SOURCES)
 aux_source_directory(${PATH_COMMON_PKIX} COMMON_SOURCES)
@@ -69,15 +83,20 @@ set_target_properties(uapki PROPERTIES LINK_FLAGS_RELEASE -s)
 
 target_compile_definitions(uapki PRIVATE UAPKI_LIBRARY)
 target_link_libraries(uapki PRIVATE uapkic uapkif)
-if(${UNIX})
-    target_link_libraries(uapki PRIVATE dl curl)
+
+if(${ANDROID})
+    target_link_libraries(uapki PRIVATE iconv curl z)
 endif()
 if(${APPLE})
     target_link_libraries(uapki PRIVATE iconv)
 endif()
+if(${UNIX})
+    target_link_libraries(uapki PRIVATE dl curl)
+endif()
 
-
-add_custom_command(TARGET uapki POST_BUILD
-    COMMAND ${CMAKE_COMMAND} -E copy $<TARGET_FILE:uapki> ../out/
-    COMMAND ${CMAKE_COMMAND} -E copy $<TARGET_FILE:uapki> ../../${OUT_DIR}/
-)
+if(NOT ${ANDROID})
+    add_custom_command(TARGET uapki POST_BUILD
+        COMMAND ${CMAKE_COMMAND} -E copy $<TARGET_FILE:uapki> ../out/
+        COMMAND ${CMAKE_COMMAND} -E copy $<TARGET_FILE:uapki> ../../${OUT_DIR}/
+    )
+endif()

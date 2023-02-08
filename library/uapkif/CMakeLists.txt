@@ -1,7 +1,7 @@
-cmake_minimum_required(VERSION 3.05)
+cmake_minimum_required(VERSION 3.17)
 
 project(uapkif LANGUAGES C)
-set(UAPKIF_VERSION 2.0.0)
+set(UAPKIF_VERSION 2.0.8)
 message(STATUS "Project: uapkif, version: " ${UAPKIF_VERSION})
 
 if(NOT CMAKE_BUILD_TYPE)
@@ -56,8 +56,9 @@ endif()
 
 target_link_libraries(uapkif PRIVATE uapkic)
 
-
-add_custom_command(TARGET uapkif POST_BUILD
-    COMMAND ${CMAKE_COMMAND} -E copy $<TARGET_FILE:uapkif> ../out/
-    COMMAND ${CMAKE_COMMAND} -E copy $<TARGET_FILE:uapkif> ../../${OUT_DIR}/
-)
+if(NOT ${ANDROID})
+    add_custom_command(TARGET uapkif POST_BUILD
+        COMMAND ${CMAKE_COMMAND} -E copy $<TARGET_FILE:uapkif> ../out/
+        COMMAND ${CMAKE_COMMAND} -E copy $<TARGET_FILE:uapkif> ../../${OUT_DIR}/
+    )
+endif()

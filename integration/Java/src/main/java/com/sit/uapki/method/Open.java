@@ -63,7 +63,6 @@ public interface Open {
             this.storage = storageId;
             this.username = username;
             this.password = password;
-            this.mode = "RO";
             switch(openMode) {
                 case RW: this.mode = "RW"; break;
                 case CREATE: this.mode = "CREATE"; break;

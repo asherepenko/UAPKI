@@ -1,46 +1,64 @@
 /*
  * Copyright (c) 2021, The UAPKI Project Authors.
- * 
- * Redistribution and use in source and binary forms, with or without 
- * modification, are permitted provided that the following conditions are 
+ *
+ * Redistribution and use in source and binary forms, with or without
+ * modification, are permitted provided that the following conditions are
  * met:
- * 
- * 1. Redistributions of source code must retain the above copyright 
+ *
+ * 1. Redistributions of source code must retain the above copyright
  * notice, this list of conditions and the following disclaimer.
- * 
- * 2. Redistributions in binary form must reproduce the above copyright 
- * notice, this list of conditions and the following disclaimer in the 
+ *
+ * 2. Redistributions in binary form must reproduce the above copyright
+ * notice, this list of conditions and the following disclaimer in the
  * documentation and/or other materials provided with the distribution.
- * 
- * THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS 
- * IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED 
- * TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A 
- * PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT 
- * HOLDER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, 
- * SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED 
- * TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE, DATA, OR 
- * PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF 
- * LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING 
- * NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS 
+ *
+ * THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS
+ * IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED
+ * TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A
+ * PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT
+ * HOLDER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL,
+ * SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED
+ * TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE, DATA, OR
+ * PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF
+ * LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING
+ * NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS
  * SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 
+import android.content.Context;
+
+import androidx.test.platform.app.InstrumentationRegistry;
+
+import com.sit.uapki.android.utils.AssetUtils;
 import com.sit.uapki.cert.*;
 import com.sit.uapki.common.*;
 import com.sit.uapki.crl.*;
 import com.sit.uapki.key.*;
 import com.sit.uapki.method.*;
 import com.google.gson.*;
+
 import java.util.ArrayList;
 import java.util.LinkedList;
 import java.util.List;
+
 import com.sit.uapki.*;
+
 import org.junit.*;
 import org.junit.runners.MethodSorters;
 
 @FixMethodOrder(MethodSorters.NAME_ASCENDING)
 public class TestLibrary {
-    static final String WORK_DIR = "./../../library/test/data/";
+
+    enum TestVerifyCert {
+        FROM_CACHE,
+        VALIDATY_BY_CRL,
+        VALIDATY_BY_CRL_AND_TIME,
+        VALIDATY_BY_ISSUERONLY,
+        VALIDATY_BY_OCSP;
+    }
+
+    static final Context context = InstrumentationRegistry.getInstrumentation().getTargetContext();
+    static final String WORK_DIR = context.getCacheDir().getPath();
     static final String INIT_TSP_URL = "http://ca.iit.ua/services/tsp/dstu/";
     static final String INIT_TSP_POLICY = null;//l"1.2.804.2.1.1.1.2.3.1";
 
@@ -50,12 +68,14 @@ public class TestLibrary {
 
 
     @BeforeClass
-    public static void setup() throws Exception  {
+    public static void setup() throws Exception {
         lib = new Library(true);
         Assert.assertNotNull(lib);
         System.out.println("Library loaded. Name: " + lib.getName() + ", Version: " + lib.getVersion());
         System.out.println("Бібліотека завантажена (тест utf-8). Назва: " + lib.getName() + ", Версія: " + lib.getVersion());
         Assert.assertEquals(lib.getName(), "UAPKI");
+
+        AssetUtils.copyAssets(context, testDir);
     }
 
     @AfterClass
@@ -65,11 +85,11 @@ public class TestLibrary {
 
     @Before
     public void setupTest() throws Exception {
-        final String INIT_DIR_CERTS = testDir + "certs/";
-        final String INIT_DIR_CRLS = testDir + "certs/crls/";
+        final String INIT_DIR_CERTS = testDir + "/certs/";
+        final String INIT_DIR_CRLS = testDir + "/certs/crls/";
 
         final boolean ADD_PKCS12 = true;
-        final String[] ADD_CM_PROVIDERS = new String[] {
+        final String[] ADD_CM_PROVIDERS = new String[]{
                 //"cm-example"
         };
         final boolean ADD_TRUSTED_CERTS = true;
@@ -80,8 +100,8 @@ public class TestLibrary {
         Assert.assertNotNull(init_params);
 
         if (ADD_PKCS12) {
-            final String p12_cfg = "{\"createPfx\":{\"bagCipher\":\"2.16.840.1.101.3.4.1.22\",\"bagKdf\":\"1.2.840.113549.2.10\","
-                    + "\"iterations\":5555,\"macAlgo\":\"2.16.840.1.101.3.4.2.2\"}}";
+            final String p12_cfg = "{\"createPfx\":{\"bagCipher\":\"2.16.840.1.101.3.4.1.42\",\"bagKdf\":\"1.2.840.113549.2.11\","
+                    + "\"iterations\":10000,\"macAlgo\":\"2.16.840.1.101.3.4.2.3\"}}";
             init_params.addCmProvider("cm-pkcs12", p12_cfg);
             expected_cnt_cmproviders++;
         }
@@ -136,7 +156,7 @@ public class TestLibrary {
     }
 
     @Test
-    public void testProviders () throws Exception {
+    public void testProviders() throws Exception {
         final List<String> list_providernames = new LinkedList<>();
         final List<Providers.CmProviderInfo> list_providerinfos = lib.getProviders();
         for (Providers.CmProviderInfo provider : list_providerinfos) {
@@ -151,7 +171,7 @@ public class TestLibrary {
                 // Для кожного сховища отримуємо перелік ключів
                 for (Storages.StorageInfo storageInfo : storages_info) {
                     System.out.println("Key storage info: id = " + storageInfo.getId() + "; description = " + storageInfo.getDescription()
-                            + "; label = " + storageInfo.getLabel() + "; serial = " + storageInfo.getSerial() );
+                            + "; label = " + storageInfo.getLabel() + "; serial = " + storageInfo.getSerial());
                 }
                 System.out.println("");
             }
@@ -161,26 +181,26 @@ public class TestLibrary {
     }
 
     @Test
-    public void testP12CreateKey () throws Exception {
+    public void testP12CreateKey() throws Exception {
         final boolean CREATE_DSTU = true;
         final boolean CREATE_ECDSA = true;
         final boolean CREATE_RSA = true;
         final boolean DELETE_KEY = true;
-        
+
         // Створюємо нове сховище ключів (файл-контейнер формату PKCS#12)
         final String provider_id = "PKCS12";
-        final String storage_id = testDir + "new-key.p12";
+        final String storage_id = testDir + "/new-test-key.p12";
         final String password = "testpassword";
         String openParams = null;
         //openParams = "{\"createPfx\":{\"bagCipher\":\"2.16.840.1.101.3.4.1.22\",\"bagKdf\":\"1.2.840.113549.2.10\",\"iterations\":5555,\"macAlgo\":\"2.16.840.1.101.3.4.2.2\"}}";
         openParams = "{\"createPfx\":{\"bagCipher\":\"2.16.840.1.101.3.4.1.2\",\"bagKdf\":\"1.2.840.113549.2.9\",\"iterations\":777,\"macAlgo\":\"2.16.840.1.101.3.4.2.1\"}}";
-        
+
         StorageInfo storage_info = lib.openStorage(provider_id, storage_id, password, Open.Mode.CREATE, openParams);
         System.out.println("\nNew storage created.");
         System.out.println(" Label: '" + storage_info.getLabel() + "'");
         System.out.println(" Serial: '" + storage_info.getSerial() + "'");
         System.out.println(" Manufacturer: '" + storage_info.getManufacturer() + "'");
-        
+
         PkiOid mechanism_id;
         PkiOid parameter_id;
         KeyId new_keyid = null;
@@ -189,14 +209,14 @@ public class TestLibrary {
             // Створюємо новий ключ для алгоритму ДСТУ4145 з ГОСТ 34.311 на ЕК М257. Згенерований ключ автоматично стає "обраним"
             mechanism_id = Oids.KeyAlgo.Dstu4145.DSTU4145_WITH_GOST3411;
             parameter_id = Oids.KeyParam.Dstu4145.M257_PB;
-            new_keyid = lib.createKey(mechanism_id, parameter_id, "Test key ДСТУ4145");
+            new_keyid = lib.createKey(mechanism_id, parameter_id, "Test key DSTU4145");
             System.out.println("Key created. KeyId: '" + new_keyid + "'");
 
             // Отримуємо запит на формування сертифікату для згенерованого ключа
             PkiData csr = lib.getCsr();
             System.out.println("CSR created: '" + csr + "'");
         }
-        
+
         if (CREATE_ECDSA) {
             mechanism_id = Oids.KeyAlgo.ECDSA;
             parameter_id = Oids.KeyParam.Ecdsa.NIST_P256;
@@ -204,13 +224,13 @@ public class TestLibrary {
             System.out.println("Key created. KeyId: '" + new_keyid + "'");
             System.out.println("CSR created: '" + lib.getCsr() + "'");
         }
-        
+
         if (CREATE_RSA) {
             new_keyid = lib.createKey(Oids.KeyAlgo.RSA, 1024, "Test Key RSA(1024)");
             System.out.println("Key created. KeyId: " + new_keyid);
             System.out.println("CSR created: '" + lib.getCsr() + "'");
         }
-        
+
         // Отримуємо перелік ключів у сховищі
         ArrayList<KeyInfo> key_infos = lib.getKeys();
         System.out.println("\nList keys on storage:");
@@ -221,7 +241,7 @@ public class TestLibrary {
             System.out.println(" label: '" + key_info.getLabel() + "'");
             System.out.println(" signAlgos: " + key_info.getSignAlgo());
         }
-        
+
         if (DELETE_KEY) {
             lib.deleteKey(new_keyid);
             key_infos = lib.getKeys();
@@ -239,9 +259,9 @@ public class TestLibrary {
         lib.closeStorage();
         System.out.println("New storage closed\n");
     }
-    
+
     @Test
-    public void testCertAPI () throws Exception {
+    public void testCertAPI() throws Exception {
         final boolean ADD_CERTS = true;
         final boolean ADD_BUNDLE_CERTS = true;
         final boolean CERT_INFO_BY_BYTES = true;
@@ -251,7 +271,7 @@ public class TestLibrary {
         final boolean REMOVE_CERT = true;
 
         CertId certid = null;
-        
+
         if (ADD_CERTS) {
             ArrayList<PkiData> b64_certs = new ArrayList<>();
             b64_certs.add(new PkiData(TestData.B64_CERT_1));
@@ -263,7 +283,7 @@ public class TestLibrary {
                 certid = addedcert_info.getCertId();
             }
         }
-        
+
         if (ADD_BUNDLE_CERTS) {
             String b64_bundle = TestData.B64_BUNDLE_P7B;
             final ArrayList<AddCert.AddedCertInfo> added_certs = lib.addCert(new PkiData(b64_bundle), false);
@@ -292,7 +312,7 @@ public class TestLibrary {
             System.out.println("\nGetCert, certid: '" + certid + "'");
             System.out.println(" b64_cert: '" + cert_bytes + "'");
         }
-        
+
         if (LIST_CERTS) {
             ArrayList<CertId> list_certids = lib.listCerts();
             System.out.println("\nlistCerts, count: " + list_certids.size());
@@ -300,7 +320,7 @@ public class TestLibrary {
                 System.out.print("'" + cert_id.toString() + "', ");
             }
             System.out.println("");
-            
+
             ListCerts.Result listcerts_result = lib.listCerts(10, 5);
             System.out.println("\nlistCerts, count: " + listcerts_result.getCount());
             System.out.println(" getOffset: " + listcerts_result.getOffset());
@@ -317,13 +337,13 @@ public class TestLibrary {
 
             lib.removeCert(certid);
             System.out.println("\nRemoved cert from CERT-cache, certid: '" + certid + "'");
-            
+
             list_certids = lib.listCerts();
             System.out.println("\nList certs, count (after): " + list_certids.size());
         }
     }
-    
-    public void showCert (CertInfo.Result certInfo) throws Exception {
+
+    public void showCert(CertInfo.Result certInfo) throws Exception {
         System.out.println(" getSerialNumber(): '" + certInfo.getSerialNumber() + "'");
         System.out.println(" getIssuer().getSERIALNUMBER(): '" + certInfo.getIssuer().getSERIALNUMBER() + "'");
         System.out.println(" getIssuer().getCN(): '" + certInfo.getIssuer().getCN() + "'");
@@ -333,8 +353,8 @@ public class TestLibrary {
         System.out.println(" getSubject().getCN(): '" + certInfo.getSubject().getCN() + "'");
         System.out.println(" getSubject().getO(): '" + certInfo.getSubject().getO() + "'");
         System.out.println(" getSpki().getAlgorithm(): '" + certInfo.getSpki().getAlgorithm() + "'");
-        System.out.println(" getSpki().getParameters(): '" + certInfo.getSpki().getParameters()+ "'");
-        System.out.println(" getSpki().getPublicKey(): '" + certInfo.getSpki().getPublicKey()+ "'");
+        System.out.println(" getSpki().getParameters(): '" + certInfo.getSpki().getParameters() + "'");
+        System.out.println(" getSpki().getPublicKey(): '" + certInfo.getSpki().getPublicKey() + "'");
         System.out.println(" getSignatureInfo().getAlgorithm(): '" + certInfo.getSignatureInfo().getAlgorithm() + "'");
         System.out.println(" getSignatureInfo().getParameters(): '" + certInfo.getSignatureInfo().getParameters() + "'");
         System.out.println(" getSignatureInfo().getSignature(): '" + certInfo.getSignatureInfo().getSignature() + "'");
@@ -343,30 +363,22 @@ public class TestLibrary {
         ArrayList<CertInfo.Extension> list_extns = certInfo.getExtensions();
         System.out.println(" Extensions, count: " + list_extns.size());
         for (CertInfo.Extension cert_extn : list_extns) {
-            System.out.println("  extnId: '" + cert_extn.getExtnId()+ "', critical: " + cert_extn.isCritical());
+            System.out.println("  extnId: '" + cert_extn.getExtnId() + "', critical: " + cert_extn.isCritical());
             System.out.println("  extnValue: '" + cert_extn.getExtnValue() + "'");
         }
         System.out.println("========================================");
     }
-    
+
     @Test
-    public void testCertInfo () throws Exception {
+    public void testCertInfo() throws Exception {
         PkiData cert_bytes = new PkiData(TestData.B64_CERT_1);
         CertInfo.Result cert_info = lib.certInfo(cert_bytes);
         showCert(cert_info);
     }
-    
-    enum TestVerifyCert {
-        FROM_CACHE,
-        VALIDATY_BY_CRL,
-        VALIDATY_BY_CRL_AND_TIME,
-        VALIDATY_BY_ISSUERONLY,
-        VALIDATY_BY_OCSP;
-    };
 
     @Test
-    public void testVerifyCert () throws Exception {
-        for (TestVerifyCert test: new TestVerifyCert[]{
+    public void testVerifyCert() throws Exception {
+        for (TestVerifyCert test : new TestVerifyCert[]{
                 TestVerifyCert.FROM_CACHE,
                 TestVerifyCert.VALIDATY_BY_CRL,
                 TestVerifyCert.VALIDATY_BY_CRL_AND_TIME,
@@ -455,16 +467,16 @@ public class TestLibrary {
             }
         }
     }
-    
+
     @Test
-    public void testCrlAPI () throws Exception {
-        
+    public void testCrlAPI() throws Exception {
+
         final boolean ADD_CRL = true;
         final boolean CRL_INFO_BY_BYTES = true;
         final boolean CRL_INFO_BY_CRLID = true;
-        
+
         CrlId crlid = null;
-        
+
         if (ADD_CRL) {
             String b64_crl = TestData.B64_CRL_FULL_25_REVOKEDCERTS;
             AddCrl.Result added_crl = lib.addCrl(new PkiData(b64_crl), false);
@@ -489,10 +501,10 @@ public class TestLibrary {
             System.out.println(" getCountRevokedCerts: " + crl_info.getCountRevokedCerts());
             System.out.println(" getAuthorityKeyId: '" + crl_info.getAuthorityKeyId() + "'");
             System.out.println(" getCrlNumber: '" + crl_info.getCrlNumber() + "'");
-            System.out.println(" GetDeltaCrlIndicator: '" + crl_info.getDeltaCrlIndicator()+ "' (optional)");
+            System.out.println(" GetDeltaCrlIndicator: '" + crl_info.getDeltaCrlIndicator() + "' (optional)");
             System.out.println(" isDeltaCrl: " + crl_info.isDeltaCrl());
             if (crl_info.getRevokedCerts() != null) {
-                for (CrlInfo.RevokedCert revoked_cert: crl_info.getRevokedCerts()) {
+                for (CrlInfo.RevokedCert revoked_cert : crl_info.getRevokedCerts()) {
                     System.out.println("getUserCertificate: '" + revoked_cert.getUserCertificate() + "'");
                     System.out.println("getRevocationDate: '" + revoked_cert.getRevocationDate() + "'");
                     System.out.println("getCrlReason: '" + revoked_cert.getCrlReason() + "' (optional)");
@@ -515,7 +527,7 @@ public class TestLibrary {
             System.out.println(" GetDeltaCrlIndicator: '" + crl_info.getDeltaCrlIndicator() + "' (optional)");
             System.out.println(" isDeltaCrl: " + crl_info.isDeltaCrl());
             if (crl_info.getRevokedCerts() != null) {
-                for (CrlInfo.RevokedCert revoked_cert: crl_info.getRevokedCerts()) {
+                for (CrlInfo.RevokedCert revoked_cert : crl_info.getRevokedCerts()) {
                     System.out.println("getUserCertificate: '" + revoked_cert.getUserCertificate() + "'");
                     System.out.println("getRevocationDate: '" + revoked_cert.getRevocationDate() + "'");
                     System.out.println("getCrlReason: '" + revoked_cert.getCrlReason() + "' (optional)");
@@ -528,14 +540,14 @@ public class TestLibrary {
 
         if (CRL_INFO_BY_CRLID && (crlid != null)) {//TODO
             CrlInfo.Result crl_info = lib.crlInfo(crlid);
-            System.out.println(" crlInfo.getCrlNumber: '" + crl_info.getCrlNumber()+ "'");
+            System.out.println(" crlInfo.getCrlNumber: '" + crl_info.getCrlNumber() + "'");
         }
 
         //TODO
 
     }
-    
-    public void showReportVerify (Verify.Result report) throws Exception {
+
+    public void showReportVerify(Verify.Result report) throws Exception {
         Gson gson = new Gson();
         System.out.println("showReportVerify");
         System.out.println(" getContent().getType(): '" + report.getContent().getType() + "'");
@@ -554,21 +566,21 @@ public class TestLibrary {
                 Verify.TimestampInfo ts_info = sign_info.getContentTS();
                 System.out.println("  getContentTS():");
                 System.out.println("   getGenTime(): '" + ts_info.getGenTime() + "'");
-                System.out.println("   getPolicy(): '" + ts_info.getPolicy()+ "'");
-                System.out.println("   getStatusDigest(): '" + ts_info.getStatusDigest()+ "'");
-                System.out.println("   getHashAlgo(): '" + ts_info.getHashAlgo()+ "' (optional/ifvalid)");
-                System.out.println("   getHashedMessage(): '" + ts_info.getHashedMessage()+ "' (optional/ifvalid)");
+                System.out.println("   getPolicy(): '" + ts_info.getPolicy() + "'");
+                System.out.println("   getStatusDigest(): '" + ts_info.getStatusDigest() + "'");
+                System.out.println("   getHashAlgo(): '" + ts_info.getHashAlgo() + "' (optional/ifvalid)");
+                System.out.println("   getHashedMessage(): '" + ts_info.getHashedMessage() + "' (optional/ifvalid)");
             }
             if (sign_info.getSignatureTS() != null) {
                 Verify.TimestampInfo ts_info = sign_info.getSignatureTS();
                 System.out.println("  getSignatureTS():");
                 System.out.println("   getGenTime(): '" + ts_info.getGenTime() + "'");
-                System.out.println("   getPolicy(): '" + ts_info.getPolicy()+ "'");
-                System.out.println("   getStatusDigest(): '" + ts_info.getStatusDigest()+ "'");
-                System.out.println("   getHashAlgo(): '" + ts_info.getHashAlgo()+ "' (optional/ifvalid)");
-                System.out.println("   getHashedMessage(): '" + ts_info.getHashedMessage()+ "' (optional/ifvalid)");
+                System.out.println("   getPolicy(): '" + ts_info.getPolicy() + "'");
+                System.out.println("   getStatusDigest(): '" + ts_info.getStatusDigest() + "'");
+                System.out.println("   getHashAlgo(): '" + ts_info.getHashAlgo() + "' (optional/ifvalid)");
+                System.out.println("   getHashedMessage(): '" + ts_info.getHashedMessage() + "' (optional/ifvalid)");
             }
-            
+
             System.out.println("  getSignedAttributes(): " + gson.toJson(sign_info.getSignedAttributes()));
             System.out.println("  getUnsignedAttributes(), (optional): " + gson.toJson(sign_info.getUnsignedAttributes()));
         }
@@ -576,46 +588,47 @@ public class TestLibrary {
     }
 
     @Test
-    public void testSign () throws Exception {
+    public void testSign() throws Exception {
         Gson gson = new Gson();
 
         ArrayList<PkiData> b64_certs = new ArrayList<>();
         b64_certs.add(new PkiData(TestData.B64_CERT_1));
         lib.addCert(b64_certs, false);
 
-        final String PROVIDER_ID = "PKCS12";        
+        final String PROVIDER_ID = "PKCS12";
+        final String STORAGE_ID = "memory";
         final String PASSWORD = "testpassword";
-        final String OPEN_PARAMS = "{\"bytes\":\"" + TestData.B64_PFX_AUGUSTO + "\"}";
+        final String OPEN_PARAMS = "{\"bytes\":\"" + TestData.B64_PFX_DSTU + "\"}";
 
         SignatureFormat sign_format = SignatureFormat.CADES_BES;
         PkiOid use_signalgo;
         use_signalgo = Oids.SignAlgo.Dstu4145.DSTU4145_WITH_GOST3411;
 
-        lib.openStorage(PROVIDER_ID, "", PASSWORD, Open.Mode.RO, OPEN_PARAMS);
+        lib.openStorage(PROVIDER_ID, STORAGE_ID, PASSWORD, Open.Mode.RO, OPEN_PARAMS);
 
         System.out.println("\nStorage is opened.");
         System.out.println("List keys on storage: " + lib.getKeys().size());
-        KeyId selected_keyid = lib.getKeys().get(0).getId();       
+        KeyId selected_keyid = lib.getKeys().get(0).getId();
         System.out.println("SelectKey, keyId: " + selected_keyid);
         SelectKey.Result selectkey_result = lib.selectKey(selected_keyid);
         System.out.println("\nKey is selected.");
         if (selectkey_result.getCertificate() != null) {
             System.out.println("Certificate present");
-            
+
             Sign.SignParams sign_params = new Sign.SignParams(sign_format);
             sign_params.SetDetachedData(true);
             sign_params.SetIncludeCert(true);
             sign_params.SetIncludeTime(true);
             sign_params.SetIncludeContentTS(false);
             if (use_signalgo != null) sign_params.SetSignAlgo(use_signalgo);
-            
+
             PkiData content, digest_of_content;
             ArrayList<Sign.DataTbs> list_datatbses = new ArrayList<>();
             content = new PkiData(TestData.B64_WIKI_ALICE_AND_BOB);
             list_datatbses.add(new Sign.DataTbs("doc-1-data", content));
-            digest_of_content = new PkiData("VFA1oGKgmZ3NirmGM+tEbEuEIluqLoUT7kaigCVyrBc=");
+            digest_of_content = new PkiData(TestData.B64_THE_QUICK_BROWN_FOX);
             list_datatbses.add(new Sign.DataTbs("doc-2-digest-of-data", digest_of_content, true));
-            
+
             ArrayList<Document> signed_docs = lib.sign(sign_params, list_datatbses);
             System.out.println("Data signed: " + gson.toJson(signed_docs) + "\n");
             for (Document it : signed_docs) {
@@ -634,7 +647,7 @@ public class TestLibrary {
     }
 
     @Test
-    public void testSignP12 () throws Exception {
+    public void testSignP12() throws Exception {
         Gson gson = new Gson();
 
         ArrayList<PkiData> b64_certs = new ArrayList<>();
@@ -646,21 +659,20 @@ public class TestLibrary {
         final Boolean USE_PFX_FILE = true;
 
         String STORAGE_FILE = "";
-        if (USE_PFX_FILE) STORAGE_FILE = testDir + "test-dstu-augusto.p12";
+        if (USE_PFX_FILE) STORAGE_FILE = testDir + "/test-dstu-2023.p12";
 
         SignatureFormat test_signformat = SignatureFormat.CADES_BES;
         //test_sign_format = SignatureFormat.CMS;
         PkiOid use_signalgo;
         use_signalgo = Oids.SignAlgo.Dstu4145.DSTU4145_WITH_GOST3411;
-        final int TEST_CASE = 2+0;
+        final int TEST_CASE = 2 + 0;
 
         PkiData signed_data, original_content;
 
         // Відкриваємо сховище з ключем для якого вже є сертифікат
         if (USE_PFX_FILE) {
             lib.openStorage(PROVIDER_ID, STORAGE_FILE, PASSWORD, Open.Mode.RO);
-        }
-        else {
+        } else {
             String OPEN_PARAMS = "{\"bytes\":\"" + TestData.B64_PFX_AUGUSTO + "\"}";
             lib.openStorage(PROVIDER_ID, "", PASSWORD, Open.Mode.RO, OPEN_PARAMS);
         }
@@ -727,10 +739,9 @@ public class TestLibrary {
                 //  Save info for verify signedData
                 signed_data = signed_docs.get(signed_docs.size() - 1).getBytes();
                 original_content = content;
-            }
-            else {
+            } else {
                 // Створюємо запит на формування підпису. Інші параметри встановлені конструктором за замовчанням. Можна змінювати
-                Sign.Parameters sign_parameters  = new Sign.Parameters(test_signformat);
+                Sign.Parameters sign_parameters = new Sign.Parameters(test_signformat);
                 if (TEST_CASE == 4) {
                     sign_parameters.getSignParams().SetDetachedData(false);
                     sign_parameters.getSignParams().SetIncludeCert(true);
@@ -785,12 +796,12 @@ public class TestLibrary {
         lib.closeStorage();
 
     }
-   
+
     @Test
-    public void testVerify () throws Exception {
+    public void testVerify() throws Exception {
         Gson gson = new Gson();
 
-        final boolean USE_DETACHED_DATA = false;
+        final boolean USE_DETACHED_DATA = true;
 
         PkiData signeddata, content = null;
         signeddata = new PkiData(TestData.B64_P7S_DSTU_WITH_TS);
@@ -805,27 +816,27 @@ public class TestLibrary {
         Verify.Result report = lib.verify(signeddata, content);
         showReportVerify(report);
     }
-    
-    @Test
-    public void testDigest () throws Exception {
 
-        String file = WORK_DIR + "test-fox.txt";
+    @Test
+    public void testDigest() throws Exception {
+
+        String file = testDir + "/test-fox.txt";
         PkiOid hashalgo = Oids.HashAlgo.Sha2.SHA256;
         PkiOid signalgo = Oids.SignAlgo.Ecdsa.ECDSA_WITH_SHA256;
         PkiData bytes = new PkiData(TestData.B64_THE_QUICK_BROWN_FOX);
 
         Digest.Result digest_result;
-        
+
         digest_result = lib.digest(hashalgo, bytes);
         System.out.println("Digest(hashAlgo: '" + hashalgo + "', bytes):");
         System.out.println(" getHashAlgo(): '" + digest_result.getHashAlgo() + "'");
         System.out.println(" getBytes(): '" + digest_result.getBytes() + "'\n");
-        
+
         digest_result = lib.digest(hashalgo, file);
         System.out.println("Digest(hashAlgo: '" + hashalgo + "', file: '" + file + "'):");
         System.out.println(" getHashAlgo(): '" + digest_result.getHashAlgo() + "'");
         System.out.println(" getBytes(): '" + digest_result.getBytes() + "'\n");
-        
+
         digest_result = lib.digest(bytes, signalgo);
         System.out.println("Digest(bytes, signAlgo: '" + hashalgo + "'):");
         System.out.println(" getHashAlgo(): '" + digest_result.getHashAlgo() + "'");
@@ -838,7 +849,7 @@ public class TestLibrary {
     }
 
     @Test
-    public void testEnum () throws Exception {
+    public void testEnum() throws Exception {
         Gson gson = new Gson();
 
         System.out.println("CertificateRevocationStatus: " + gson.toJson(CertificateRevocationStatus.values()));
@@ -856,7 +867,7 @@ public class TestLibrary {
             s_format = SignatureFormat.fromString("CAdES-new");
             System.out.println("s_format: '" + s_format + "'");
         }
-        
+
         {
             RevocationReason r_reason = RevocationReason.REMOVE_FROM_CRL;
             System.out.println("\nr_reason: '" + r_reason + "'");
