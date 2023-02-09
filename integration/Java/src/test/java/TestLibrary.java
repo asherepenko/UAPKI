@@ -59,12 +59,11 @@ public class TestLibrary {
 
     static final Context context = InstrumentationRegistry.getInstrumentation().getTargetContext();
     static final String WORK_DIR = context.getCacheDir().getPath();
-    static final String INIT_TSP_URL = "http://ca.iit.ua/services/tsp/dstu/";
-    static final String INIT_TSP_POLICY = null;//l"1.2.804.2.1.1.1.2.3.1";
+    static final String INIT_TSP_URL = "http://acskidd.gov.ua/services/tsp/";
+    static final String INIT_TSP_POLICY = "1.2.804.2.1.1.1.2.3.1";
 
     static Library lib;
     static String testDir = WORK_DIR;
-    static List<String> listProviders;
 
 
     @BeforeClass
@@ -100,8 +99,7 @@ public class TestLibrary {
         Assert.assertNotNull(init_params);
 
         if (ADD_PKCS12) {
-            final String p12_cfg = "{\"createPfx\":{\"bagCipher\":\"2.16.840.1.101.3.4.1.42\",\"bagKdf\":\"1.2.840.113549.2.11\","
-                    + "\"iterations\":10000,\"macAlgo\":\"2.16.840.1.101.3.4.2.3\"}}";
+            final String p12_cfg = "{\"createPfx\":{\"bagCipher\":\"2.16.840.1.101.3.4.1.42\",\"bagKdf\":\"1.2.840.113549.2.11\",\"iterations\":10000,\"macAlgo\":\"2.16.840.1.101.3.4.2.3\"}}";
             init_params.addCmProvider("cm-pkcs12", p12_cfg);
             expected_cnt_cmproviders++;
         }
@@ -137,7 +135,7 @@ public class TestLibrary {
         System.out.println("getCountCmProviders(): " + init_result.getCountCmProviders());
         System.out.println("isOffline(): " + init_result.isOffline());
         System.out.println("getTspInfo().getUrl(): " + init_result.getTspInfo().getUrl());
-        System.out.println("getTspInfo().getPolicy(): " + init_result.getTspInfo().getPolicy());
+        System.out.println("getTspInfo().getPolicy(): " + init_result.getTspInfo().getPolicyId());
         System.out.println("");
 
         Assert.assertEquals(init_result.getCertCacheInfo().getCountTrustedCerts(), list_trustedcerts.size());
@@ -145,7 +143,7 @@ public class TestLibrary {
         if (INIT_TSP_URL != null) {
             Assert.assertEquals(init_result.getTspInfo().getUrl(), INIT_TSP_URL);
             if (INIT_TSP_POLICY != null) {
-                Assert.assertEquals(init_result.getTspInfo().getPolicy(), INIT_TSP_POLICY);
+                Assert.assertEquals(init_result.getTspInfo().getPolicyId(), INIT_TSP_POLICY);
             }
         }
     }
@@ -191,9 +189,7 @@ public class TestLibrary {
         final String provider_id = "PKCS12";
         final String storage_id = testDir + "/new-test-key.p12";
         final String password = "testpassword";
-        String openParams = null;
-        //openParams = "{\"createPfx\":{\"bagCipher\":\"2.16.840.1.101.3.4.1.22\",\"bagKdf\":\"1.2.840.113549.2.10\",\"iterations\":5555,\"macAlgo\":\"2.16.840.1.101.3.4.2.2\"}}";
-        openParams = "{\"createPfx\":{\"bagCipher\":\"2.16.840.1.101.3.4.1.2\",\"bagKdf\":\"1.2.840.113549.2.9\",\"iterations\":777,\"macAlgo\":\"2.16.840.1.101.3.4.2.1\"}}";
+        final String openParams = "{\"createPfx\":{\"bagCipher\":\"2.16.840.1.101.3.4.1.42\",\"bagKdf\":\"1.2.840.113549.2.11\",\"iterations\":1000,\"macAlgo\":\"2.16.840.1.101.3.4.2.3\"}}";
 
         StorageInfo storage_info = lib.openStorage(provider_id, storage_id, password, Open.Mode.CREATE, openParams);
         System.out.println("\nNew storage created.");
@@ -343,32 +339,6 @@ public class TestLibrary {
         }
     }
 
-    public void showCert(CertInfo.Result certInfo) throws Exception {
-        System.out.println(" getSerialNumber(): '" + certInfo.getSerialNumber() + "'");
-        System.out.println(" getIssuer().getSERIALNUMBER(): '" + certInfo.getIssuer().getSERIALNUMBER() + "'");
-        System.out.println(" getIssuer().getCN(): '" + certInfo.getIssuer().getCN() + "'");
-        System.out.println(" getIssuer().getO(): '" + certInfo.getIssuer().getO() + "'");
-        System.out.println(" getValidity().getNotBefore(): '" + certInfo.getValidity().getNotBefore() + "'");
-        System.out.println(" getValidity().getNotAfter(): '" + certInfo.getValidity().getNotAfter() + "'");
-        System.out.println(" getSubject().getCN(): '" + certInfo.getSubject().getCN() + "'");
-        System.out.println(" getSubject().getO(): '" + certInfo.getSubject().getO() + "'");
-        System.out.println(" getSpki().getAlgorithm(): '" + certInfo.getSpki().getAlgorithm() + "'");
-        System.out.println(" getSpki().getParameters(): '" + certInfo.getSpki().getParameters() + "'");
-        System.out.println(" getSpki().getPublicKey(): '" + certInfo.getSpki().getPublicKey() + "'");
-        System.out.println(" getSignatureInfo().getAlgorithm(): '" + certInfo.getSignatureInfo().getAlgorithm() + "'");
-        System.out.println(" getSignatureInfo().getParameters(): '" + certInfo.getSignatureInfo().getParameters() + "'");
-        System.out.println(" getSignatureInfo().getSignature(): '" + certInfo.getSignatureInfo().getSignature() + "'");
-        System.out.println(" isSelfSigned(): " + certInfo.isSelfSigned());
-
-        ArrayList<CertInfo.Extension> list_extns = certInfo.getExtensions();
-        System.out.println(" Extensions, count: " + list_extns.size());
-        for (CertInfo.Extension cert_extn : list_extns) {
-            System.out.println("  extnId: '" + cert_extn.getExtnId() + "', critical: " + cert_extn.isCritical());
-            System.out.println("  extnValue: '" + cert_extn.getExtnValue() + "'");
-        }
-        System.out.println("========================================");
-    }
-
     @Test
     public void testCertInfo() throws Exception {
         PkiData cert_bytes = new PkiData(TestData.B64_CERT_1);
@@ -470,7 +440,6 @@ public class TestLibrary {
 
     @Test
     public void testCrlAPI() throws Exception {
-
         final boolean ADD_CRL = true;
         final boolean CRL_INFO_BY_BYTES = true;
         final boolean CRL_INFO_BY_CRLID = true;
@@ -490,7 +459,7 @@ public class TestLibrary {
             System.out.println(" isUnique: " + added_crl.isUnique());
         }
 
-        if (CRL_INFO_BY_BYTES && (crlid != null)) {//TODO
+        if (CRL_INFO_BY_BYTES && (crlid != null)) {
             PkiData crl = new PkiData(TestData.B64_CRL_FULL_25_REVOKEDCERTS);
             CrlInfo.Result crl_info = lib.crlInfo(crl);
             System.out.println("\nCrlInfo:");
@@ -538,53 +507,10 @@ public class TestLibrary {
             System.out.println("");
         }
 
-        if (CRL_INFO_BY_CRLID && (crlid != null)) {//TODO
+        if (CRL_INFO_BY_CRLID && (crlid != null)) {
             CrlInfo.Result crl_info = lib.crlInfo(crlid);
             System.out.println(" crlInfo.getCrlNumber: '" + crl_info.getCrlNumber() + "'");
         }
-
-        //TODO
-
-    }
-
-    public void showReportVerify(Verify.Result report) throws Exception {
-        Gson gson = new Gson();
-        System.out.println("showReportVerify");
-        System.out.println(" getContent().getType(): '" + report.getContent().getType() + "'");
-        System.out.println(" getContent().getBytes(): '" + report.getContent().getBytes() + "' (optional)");
-        System.out.println(" getCertIds(): " + report.getCertIds());
-        Verify.SignatureInfo sign_info = report.getSignatureInfo();
-        if (sign_info != null) {
-            System.out.println("SignatureInfo:");
-            System.out.println("  getSignerCertId(): " + sign_info.getSignerCertId());
-            System.out.println("  getStatus(): '" + sign_info.getStatus() + "'");
-            System.out.println("  getStatusSignature(): '" + sign_info.getStatusSignature() + "'");
-            System.out.println("  getStatusMessageDigest(): '" + sign_info.getStatusMessageDigest() + "'");
-            System.out.println("  getStatusEssCert(): '" + sign_info.getStatusEssCert() + "' (optional)");
-            System.out.println("  getSigningTime(): '" + sign_info.getSigningTime() + "' (optional)");
-            if (sign_info.getContentTS() != null) {
-                Verify.TimestampInfo ts_info = sign_info.getContentTS();
-                System.out.println("  getContentTS():");
-                System.out.println("   getGenTime(): '" + ts_info.getGenTime() + "'");
-                System.out.println("   getPolicy(): '" + ts_info.getPolicy() + "'");
-                System.out.println("   getStatusDigest(): '" + ts_info.getStatusDigest() + "'");
-                System.out.println("   getHashAlgo(): '" + ts_info.getHashAlgo() + "' (optional/ifvalid)");
-                System.out.println("   getHashedMessage(): '" + ts_info.getHashedMessage() + "' (optional/ifvalid)");
-            }
-            if (sign_info.getSignatureTS() != null) {
-                Verify.TimestampInfo ts_info = sign_info.getSignatureTS();
-                System.out.println("  getSignatureTS():");
-                System.out.println("   getGenTime(): '" + ts_info.getGenTime() + "'");
-                System.out.println("   getPolicy(): '" + ts_info.getPolicy() + "'");
-                System.out.println("   getStatusDigest(): '" + ts_info.getStatusDigest() + "'");
-                System.out.println("   getHashAlgo(): '" + ts_info.getHashAlgo() + "' (optional/ifvalid)");
-                System.out.println("   getHashedMessage(): '" + ts_info.getHashedMessage() + "' (optional/ifvalid)");
-            }
-
-            System.out.println("  getSignedAttributes(): " + gson.toJson(sign_info.getSignedAttributes()));
-            System.out.println("  getUnsignedAttributes(), (optional): " + gson.toJson(sign_info.getUnsignedAttributes()));
-        }
-        System.out.println(" getReportTime(): '" + report.getReportTime() + "'");
     }
 
     @Test
@@ -598,7 +524,7 @@ public class TestLibrary {
         final String PROVIDER_ID = "PKCS12";
         final String STORAGE_ID = "memory";
         final String PASSWORD = "testpassword";
-        final String OPEN_PARAMS = "{\"bytes\":\"" + TestData.B64_PFX_DSTU + "\"}";
+        final String OPEN_PARAMS = "{\"bytes\":\"" + TestData.B64_PFX_AUGUSTO + "\"}";
 
         SignatureFormat sign_format = SignatureFormat.CADES_BES;
         PkiOid use_signalgo;
@@ -655,6 +581,7 @@ public class TestLibrary {
         lib.addCert(b64_certs, false);
 
         final String PROVIDER_ID = "PKCS12";
+        final String STORAGE_ID = "memory";
         final String PASSWORD = "testpassword";
         final Boolean USE_PFX_FILE = true;
 
@@ -673,8 +600,8 @@ public class TestLibrary {
         if (USE_PFX_FILE) {
             lib.openStorage(PROVIDER_ID, STORAGE_FILE, PASSWORD, Open.Mode.RO);
         } else {
-            String OPEN_PARAMS = "{\"bytes\":\"" + TestData.B64_PFX_AUGUSTO + "\"}";
-            lib.openStorage(PROVIDER_ID, "", PASSWORD, Open.Mode.RO, OPEN_PARAMS);
+            String OPEN_PARAMS = "{\"bytes\":\"" + TestData.B64_PFX_DSTU + "\"}";
+            lib.openStorage(PROVIDER_ID, STORAGE_ID, PASSWORD, Open.Mode.RO, OPEN_PARAMS);
         }
         System.out.println("\nStorage is opened.");
 
@@ -794,13 +721,10 @@ public class TestLibrary {
 
         // Закриваємо сховище ключів
         lib.closeStorage();
-
     }
 
     @Test
     public void testVerify() throws Exception {
-        Gson gson = new Gson();
-
         final boolean USE_DETACHED_DATA = true;
 
         PkiData signeddata, content = null;
@@ -819,7 +743,6 @@ public class TestLibrary {
 
     @Test
     public void testDigest() throws Exception {
-
         String file = testDir + "/test-fox.txt";
         PkiOid hashalgo = Oids.HashAlgo.Sha2.SHA256;
         PkiOid signalgo = Oids.SignAlgo.Ecdsa.ECDSA_WITH_SHA256;
@@ -859,24 +782,84 @@ public class TestLibrary {
         System.out.println("SignatureValidationStatus: " + gson.toJson(SignatureValidationStatus.values()));
         System.out.println("VerificationStatus: " + gson.toJson(VerificationStatus.values()));
 
-        {
-            SignatureFormat s_format = SignatureFormat.CADES_BES;
-            System.out.println("\ns_format: '" + s_format + "'");
-            s_format = SignatureFormat.fromString("CAdES-T");
-            System.out.println("s_format: '" + s_format + "'");
-            s_format = SignatureFormat.fromString("CAdES-new");
-            System.out.println("s_format: '" + s_format + "'");
-        }
+        SignatureFormat s_format = SignatureFormat.CADES_BES;
+        System.out.println("\ns_format: '" + s_format + "'");
+        s_format = SignatureFormat.fromString("CAdES-T");
+        System.out.println("s_format: '" + s_format + "'");
+        s_format = SignatureFormat.fromString("CAdES-new");
+        System.out.println("s_format: '" + s_format + "'");
 
-        {
-            RevocationReason r_reason = RevocationReason.REMOVE_FROM_CRL;
-            System.out.println("\nr_reason: '" + r_reason + "'");
-            r_reason = RevocationReason.fromString("KEY_COMPROMISE");
-            System.out.println("r_reason: '" + r_reason + "'");
-            r_reason = RevocationReason.fromString("Reason-new");
-            System.out.println("r_reason: '" + r_reason + "'");
-        }
-
+        RevocationReason r_reason = RevocationReason.REMOVE_FROM_CRL;
+        System.out.println("\nr_reason: '" + r_reason + "'");
+        r_reason = RevocationReason.fromString("KEY_COMPROMISE");
+        System.out.println("r_reason: '" + r_reason + "'");
+        r_reason = RevocationReason.fromString("Reason-new");
+        System.out.println("r_reason: '" + r_reason + "'");
     }
 
+    private void showCert(CertInfo.Result certInfo) throws Exception {
+        System.out.println(" getSerialNumber(): '" + certInfo.getSerialNumber() + "'");
+        System.out.println(" getIssuer().getSERIALNUMBER(): '" + certInfo.getIssuer().getSERIALNUMBER() + "'");
+        System.out.println(" getIssuer().getCN(): '" + certInfo.getIssuer().getCN() + "'");
+        System.out.println(" getIssuer().getO(): '" + certInfo.getIssuer().getO() + "'");
+        System.out.println(" getValidity().getNotBefore(): '" + certInfo.getValidity().getNotBefore() + "'");
+        System.out.println(" getValidity().getNotAfter(): '" + certInfo.getValidity().getNotAfter() + "'");
+        System.out.println(" getSubject().getCN(): '" + certInfo.getSubject().getCN() + "'");
+        System.out.println(" getSubject().getO(): '" + certInfo.getSubject().getO() + "'");
+        System.out.println(" getSpki().getAlgorithm(): '" + certInfo.getSpki().getAlgorithm() + "'");
+        System.out.println(" getSpki().getParameters(): '" + certInfo.getSpki().getParameters() + "'");
+        System.out.println(" getSpki().getPublicKey(): '" + certInfo.getSpki().getPublicKey() + "'");
+        System.out.println(" getSignatureInfo().getAlgorithm(): '" + certInfo.getSignatureInfo().getAlgorithm() + "'");
+        System.out.println(" getSignatureInfo().getParameters(): '" + certInfo.getSignatureInfo().getParameters() + "'");
+        System.out.println(" getSignatureInfo().getSignature(): '" + certInfo.getSignatureInfo().getSignature() + "'");
+        System.out.println(" isSelfSigned(): " + certInfo.isSelfSigned());
+
+        ArrayList<CertInfo.Extension> list_extns = certInfo.getExtensions();
+        System.out.println(" Extensions, count: " + list_extns.size());
+        for (CertInfo.Extension cert_extn : list_extns) {
+            System.out.println("  extnId: '" + cert_extn.getExtnId() + "', critical: " + cert_extn.isCritical());
+            System.out.println("  extnValue: '" + cert_extn.getExtnValue() + "'");
+        }
+        System.out.println("========================================");
+    }
+
+    private void showReportVerify(Verify.Result report) throws Exception {
+        Gson gson = new Gson();
+        System.out.println("showReportVerify");
+        System.out.println(" getContent().getType(): '" + report.getContent().getType() + "'");
+        System.out.println(" getContent().getBytes(): '" + report.getContent().getBytes() + "' (optional)");
+        System.out.println(" getCertIds(): " + report.getCertIds());
+        Verify.SignatureInfo sign_info = report.getSignatureInfo();
+        if (sign_info != null) {
+            System.out.println("SignatureInfo:");
+            System.out.println("  getSignerCertId(): " + sign_info.getSignerCertId());
+            System.out.println("  getStatus(): '" + sign_info.getStatus() + "'");
+            System.out.println("  getStatusSignature(): '" + sign_info.getStatusSignature() + "'");
+            System.out.println("  getStatusMessageDigest(): '" + sign_info.getStatusMessageDigest() + "'");
+            System.out.println("  getStatusEssCert(): '" + sign_info.getStatusEssCert() + "' (optional)");
+            System.out.println("  getSigningTime(): '" + sign_info.getSigningTime() + "' (optional)");
+            if (sign_info.getContentTS() != null) {
+                Verify.TimestampInfo ts_info = sign_info.getContentTS();
+                System.out.println("  getContentTS():");
+                System.out.println("   getGenTime(): '" + ts_info.getGenTime() + "'");
+                System.out.println("   getPolicy(): '" + ts_info.getPolicy() + "'");
+                System.out.println("   getStatusDigest(): '" + ts_info.getStatusDigest() + "'");
+                System.out.println("   getHashAlgo(): '" + ts_info.getHashAlgo() + "' (optional/ifvalid)");
+                System.out.println("   getHashedMessage(): '" + ts_info.getHashedMessage() + "' (optional/ifvalid)");
+            }
+            if (sign_info.getSignatureTS() != null) {
+                Verify.TimestampInfo ts_info = sign_info.getSignatureTS();
+                System.out.println("  getSignatureTS():");
+                System.out.println("   getGenTime(): '" + ts_info.getGenTime() + "'");
+                System.out.println("   getPolicy(): '" + ts_info.getPolicy() + "'");
+                System.out.println("   getStatusDigest(): '" + ts_info.getStatusDigest() + "'");
+                System.out.println("   getHashAlgo(): '" + ts_info.getHashAlgo() + "' (optional/ifvalid)");
+                System.out.println("   getHashedMessage(): '" + ts_info.getHashedMessage() + "' (optional/ifvalid)");
+            }
+
+            System.out.println("  getSignedAttributes(): " + gson.toJson(sign_info.getSignedAttributes()));
+            System.out.println("  getUnsignedAttributes(), (optional): " + gson.toJson(sign_info.getUnsignedAttributes()));
+        }
+        System.out.println(" getReportTime(): '" + report.getReportTime() + "'");
+    }
 }

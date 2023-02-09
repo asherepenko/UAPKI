@@ -98,11 +98,11 @@ public interface Init {
 
         public class Tsp {
             final String url;
-            final String policy;
+            final String policyId;
 
-            public Tsp (String url, String policy) {
+            public Tsp (String url, String policyId) {
                 this.url = url;
-                this.policy = policy;
+                this.policyId = policyId;
             }
         }
 
@@ -168,11 +168,11 @@ public interface Init {
         /**
          * Setup a cert-cache.
          * @param url an absolute URL of TSP-service
-         * @param policy - TSP-policy. It's OID-string.
+         * @param policyId - TSP-policy. It's OID-string.
          *        If it's null then TSP-policy not present in TSP-request.
          */ 
-        public void setTspParameters (String url, String policy) {
-            this.tsp = new Tsp(url, policy);
+        public void setTspParameters (String url, String policyId) {
+            this.tsp = new Tsp(url, policyId);
         }
     }   //  end class Parameters
 

@@ -29,12 +29,12 @@ package com.sit.uapki.common;
 
 public class TspInfo {
     String url;
-    String policy;
+    String policyId;
 
     public String getUrl() {
         return url;
     }
-    public String getPolicy() {
-        return policy;
+    public String getPolicyId() {
+        return policyId;
     }
 }
