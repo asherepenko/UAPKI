@@ -51,10 +51,10 @@ public class TestLibrary {
 
     enum TestVerifyCert {
         FROM_CACHE,
-        VALIDATY_BY_CRL,
-        VALIDATY_BY_CRL_AND_TIME,
-        VALIDATY_BY_ISSUERONLY,
-        VALIDATY_BY_OCSP;
+        VALIDATE_BY_CRL,
+        VALIDATE_BY_CRL_AND_TIME,
+        VALIDATE_BY_ISSUER_ONLY,
+        VALIDATE_BY_OCSP;
     }
 
     static final Context context = InstrumentationRegistry.getInstrumentation().getTargetContext();
@@ -111,8 +111,8 @@ public class TestLibrary {
         final ArrayList<PkiData> list_trustedcerts = new ArrayList<>();
         if (INIT_DIR_CERTS != null) {
             if (ADD_TRUSTED_CERTS) {
-                list_trustedcerts.add(new PkiData(TestData.B64_CERT_3DA_ROOT_DSTU));
-                list_trustedcerts.add(new PkiData(TestData.B64_CERT_3DA_ROOT_ECDSA));
+                list_trustedcerts.add(new PkiData(TestData.B64_CERT_3DA_ROOT_DSTU4145));
+                list_trustedcerts.add(new PkiData(TestData.B64_CERT_DIIA_ROOT_DSTU4145));
             }
             init_params.setCertCache(INIT_DIR_CERTS, list_trustedcerts);
         }
@@ -187,7 +187,7 @@ public class TestLibrary {
 
         // Створюємо нове сховище ключів (файл-контейнер формату PKCS#12)
         final String provider_id = "PKCS12";
-        final String storage_id = testDir + "/new-test-key.p12";
+        final String storage_id = testDir + "/test-key.p12";
         final String password = "testpassword";
         final String openParams = "{\"createPfx\":{\"bagCipher\":\"2.16.840.1.101.3.4.1.42\",\"bagKdf\":\"1.2.840.113549.2.11\",\"iterations\":1000,\"macAlgo\":\"2.16.840.1.101.3.4.2.3\"}}";
 
@@ -270,8 +270,8 @@ public class TestLibrary {
 
         if (ADD_CERTS) {
             ArrayList<PkiData> b64_certs = new ArrayList<>();
-            b64_certs.add(new PkiData(TestData.B64_CERT_1));
-            b64_certs.add(new PkiData(TestData.B64_CERT_2));
+            b64_certs.add(new PkiData(TestData.B64_CERT_3DA_DSTU4145));
+            b64_certs.add(new PkiData(TestData.B64_CERT_DIIA_DSTU4145));
             final ArrayList<AddCert.AddedCertInfo> added_certs = lib.addCert(b64_certs, false);
             for (AddCert.AddedCertInfo addedcert_info : added_certs) {
                 System.out.println(" getCertId: '" + addedcert_info.getCertId() + "'");
@@ -341,7 +341,7 @@ public class TestLibrary {
 
     @Test
     public void testCertInfo() throws Exception {
-        PkiData cert_bytes = new PkiData(TestData.B64_CERT_1);
+        PkiData cert_bytes = new PkiData(TestData.B64_CERT_3DA_DSTU4145);
         CertInfo.Result cert_info = lib.certInfo(cert_bytes);
         showCert(cert_info);
     }
@@ -350,10 +350,10 @@ public class TestLibrary {
     public void testVerifyCert() throws Exception {
         for (TestVerifyCert test : new TestVerifyCert[]{
                 TestVerifyCert.FROM_CACHE,
-                TestVerifyCert.VALIDATY_BY_CRL,
-                TestVerifyCert.VALIDATY_BY_CRL_AND_TIME,
-                TestVerifyCert.VALIDATY_BY_ISSUERONLY,
-                TestVerifyCert.VALIDATY_BY_OCSP}) {
+                TestVerifyCert.VALIDATE_BY_CRL,
+                TestVerifyCert.VALIDATE_BY_CRL_AND_TIME,
+                TestVerifyCert.VALIDATE_BY_ISSUER_ONLY,
+                TestVerifyCert.VALIDATE_BY_OCSP}) {
 
             VerifyCert.Result report = null;
 
@@ -361,39 +361,35 @@ public class TestLibrary {
 
             if (test == TestVerifyCert.FROM_CACHE) {
                 ArrayList<PkiData> list_certs = new ArrayList<>();
-                list_certs.add(new PkiData(TestData.B64_CERT_1));
+                list_certs.add(new PkiData(TestData.B64_CERT_DIIA_DSTU4145));
                 final ArrayList<AddCert.AddedCertInfo> added_certs = lib.addCert(list_certs, false);
                 CertId certid = added_certs.get(0).getCertId();
                 report = lib.verifyCert(certid, VerifyCert.ValidationType.ISSUER_AND_CRL);
                 System.out.println("\nVerifyCert");
             }
 
-            if (test == TestVerifyCert.VALIDATY_BY_ISSUERONLY) {
-                PkiData cert_bytes = new PkiData(TestData.B64_CERT_1);
+            if (test == TestVerifyCert.VALIDATE_BY_ISSUER_ONLY) {
+                PkiData cert_bytes = new PkiData(TestData.B64_CERT_DIIA_DSTU4145);
                 report = lib.verifyCert(cert_bytes, VerifyCert.ValidationType.ISSUER_ONLY);
                 System.out.println("\nVerifyCert");
             }
 
-            if (test == TestVerifyCert.VALIDATY_BY_CRL) {
-                PkiData cert_bytes = new PkiData(TestData.B64_CERT_1);
+            if (test == TestVerifyCert.VALIDATE_BY_CRL) {
+                PkiData cert_bytes = new PkiData(TestData.B64_CERT_DIIA_DSTU4145);
                 showCert(lib.certInfo(cert_bytes));
                 report = lib.verifyCert(cert_bytes, VerifyCert.ValidationType.ISSUER_AND_CRL);
                 System.out.println("\nVerifyCert");
             }
 
-            if (test == TestVerifyCert.VALIDATY_BY_CRL_AND_TIME) {
-                PkiData cert_bytes = new PkiData(TestData.B64_CERT_1);
-                PkiTime validate_time;
-                //validate_time = new PkiTime("2020-08-26 20:28:37");
-                validate_time = new PkiTime("2020-08-26 20:32:18");
-                //validate_time = new PkiTime("2020-08-31 15:59:59");
-                //validate_time = new PkiTime("2020-08-31 16:01:09");
+            if (test == TestVerifyCert.VALIDATE_BY_CRL_AND_TIME) {
+                PkiData cert_bytes = new PkiData(TestData.B64_CERT_DIIA_DSTU4145);
+                PkiTime validate_time = new PkiTime("2022-08-24 16:00:00");
                 report = lib.verifyCert(cert_bytes, validate_time);
                 System.out.println("\nVerifyCert");
             }
 
-            if (test == TestVerifyCert.VALIDATY_BY_OCSP) {
-                PkiData cert_bytes = new PkiData(TestData.B64_CERT_1);
+            if (test == TestVerifyCert.VALIDATE_BY_OCSP) {
+                PkiData cert_bytes = new PkiData(TestData.B64_CERT_DIIA_DSTU4145);
                 report = lib.verifyCert(cert_bytes, VerifyCert.ValidationType.ISSUER_AND_OCSP);
                 System.out.println("\nVerifyCert");
             }
@@ -518,17 +514,16 @@ public class TestLibrary {
         Gson gson = new Gson();
 
         ArrayList<PkiData> b64_certs = new ArrayList<>();
-        b64_certs.add(new PkiData(TestData.B64_CERT_1));
+        b64_certs.add(new PkiData(TestData.B64_CERT_3DA_DSTU4145));
         lib.addCert(b64_certs, false);
 
         final String PROVIDER_ID = "PKCS12";
-        final String STORAGE_ID = "memory";
+        final String STORAGE_ID = "test_storage";
         final String PASSWORD = "testpassword";
-        final String OPEN_PARAMS = "{\"bytes\":\"" + TestData.B64_PFX_AUGUSTO + "\"}";
+        final String OPEN_PARAMS = "{\"bytes\":\"" + TestData.B64_PFX_3DA_DSTU4145 + "\"}";
 
         SignatureFormat sign_format = SignatureFormat.CADES_BES;
-        PkiOid use_signalgo;
-        use_signalgo = Oids.SignAlgo.Dstu4145.DSTU4145_WITH_GOST3411;
+        PkiOid use_signalgo = Oids.SignAlgo.Dstu4145.DSTU4145_WITH_GOST3411;
 
         lib.openStorage(PROVIDER_ID, STORAGE_ID, PASSWORD, Open.Mode.RO, OPEN_PARAMS);
 
@@ -545,14 +540,14 @@ public class TestLibrary {
             sign_params.SetDetachedData(true);
             sign_params.SetIncludeCert(true);
             sign_params.SetIncludeTime(true);
-            sign_params.SetIncludeContentTS(false);
+            sign_params.SetIncludeContentTS(true);
             if (use_signalgo != null) sign_params.SetSignAlgo(use_signalgo);
 
             PkiData content, digest_of_content;
             ArrayList<Sign.DataTbs> list_datatbses = new ArrayList<>();
-            content = new PkiData(TestData.B64_WIKI_ALICE_AND_BOB);
+            content = new PkiData(TestData.B64_STRING_WIKI_ALICE_AND_BOB);
             list_datatbses.add(new Sign.DataTbs("doc-1-data", content));
-            digest_of_content = new PkiData(TestData.B64_THE_QUICK_BROWN_FOX);
+            digest_of_content = new PkiData("VFA1oGKgmZ3NirmGM+tEbEuEIluqLoUT7kaigCVyrBc=");
             list_datatbses.add(new Sign.DataTbs("doc-2-digest-of-data", digest_of_content, true));
 
             ArrayList<Document> signed_docs = lib.sign(sign_params, list_datatbses);
@@ -577,21 +572,19 @@ public class TestLibrary {
         Gson gson = new Gson();
 
         ArrayList<PkiData> b64_certs = new ArrayList<>();
-        b64_certs.add(new PkiData(TestData.B64_CERT_1));
+        b64_certs.add(new PkiData(TestData.B64_CERT_3DA_DSTU4145));
         lib.addCert(b64_certs, false);
 
         final String PROVIDER_ID = "PKCS12";
-        final String STORAGE_ID = "memory";
+        final String STORAGE_ID = "test_storage";
         final String PASSWORD = "testpassword";
-        final Boolean USE_PFX_FILE = true;
+        final Boolean USE_PFX_FILE = false;
 
         String STORAGE_FILE = "";
         if (USE_PFX_FILE) STORAGE_FILE = testDir + "/test-dstu-2023.p12";
 
-        SignatureFormat test_signformat = SignatureFormat.CADES_BES;
-        //test_sign_format = SignatureFormat.CMS;
-        PkiOid use_signalgo;
-        use_signalgo = Oids.SignAlgo.Dstu4145.DSTU4145_WITH_GOST3411;
+        SignatureFormat sign_format = SignatureFormat.CADES_BES;
+        PkiOid use_signalgo = Oids.SignAlgo.Dstu4145.DSTU4145_WITH_GOST3411;
         final int TEST_CASE = 2 + 0;
 
         PkiData signed_data, original_content;
@@ -600,7 +593,7 @@ public class TestLibrary {
         if (USE_PFX_FILE) {
             lib.openStorage(PROVIDER_ID, STORAGE_FILE, PASSWORD, Open.Mode.RO);
         } else {
-            String OPEN_PARAMS = "{\"bytes\":\"" + TestData.B64_PFX_DSTU + "\"}";
+            String OPEN_PARAMS = "{\"bytes\":\"" + TestData.B64_PFX_3DA_DSTU4145 + "\"}";
             lib.openStorage(PROVIDER_ID, STORAGE_ID, PASSWORD, Open.Mode.RO, OPEN_PARAMS);
         }
         System.out.println("\nStorage is opened.");
@@ -636,18 +629,19 @@ public class TestLibrary {
 
             if ((TEST_CASE == 1) || (TEST_CASE == 2)) {
                 // Створюємо запит на формування підпису. Інші параметри встановлені конструктором за замовчанням. Можна змінювати
-                Sign.SignParams sign_params = new Sign.SignParams(test_signformat);
+                Sign.SignParams sign_params = new Sign.SignParams(sign_format);
                 if (TEST_CASE == 2) {
-                    sign_params.SetDetachedData(false);
+                    sign_params.SetDetachedData(true);
                     sign_params.SetIncludeCert(true);
                     sign_params.SetIncludeTime(true);
+                    sign_params.SetIncludeContentTS(true);
                     if (use_signalgo != null) sign_params.SetSignAlgo(use_signalgo);
                 }
 
                 // Дані для підпису. За одне звернення до функції формування підпису можна підписати декілька документів
                 PkiData content;
                 ArrayList<Sign.DataTbs> list_datatbses = new ArrayList<>();
-                content = new PkiData(TestData.B64_WIKI_ALICE_AND_BOB);
+                content = new PkiData(TestData.B64_STRING_WIKI_ALICE_AND_BOB);
                 list_datatbses.add(new Sign.DataTbs("doc-1", content));
                 content = new PkiData("0JvQsNCz0ZbQtNC90LAg0YPQutGA0LDRl9C90ZbQt9Cw0YbRltGP");
                 list_datatbses.add(new Sign.DataTbs("doc-2", content));
@@ -668,7 +662,7 @@ public class TestLibrary {
                 original_content = content;
             } else {
                 // Створюємо запит на формування підпису. Інші параметри встановлені конструктором за замовчанням. Можна змінювати
-                Sign.Parameters sign_parameters = new Sign.Parameters(test_signformat);
+                Sign.Parameters sign_parameters = new Sign.Parameters(sign_format);
                 if (TEST_CASE == 4) {
                     sign_parameters.getSignParams().SetDetachedData(false);
                     sign_parameters.getSignParams().SetIncludeCert(true);
@@ -677,11 +671,11 @@ public class TestLibrary {
 
                 // Додаємо дані для підпису до запиту на підпис. За одне звернення до функції формування підпису можна підписати декілька документів
                 PkiData content;
-                content = new PkiData("QWxpY2UgYW5kIEJvYgpodHRwczovL2VuLndpa2lwZWRpYS5vcmcvd2lraS9BbGljZV9hbmRfQm9i");
+                content = new PkiData(TestData.B64_STRING_WIKI_ALICE_AND_BOB);
                 sign_parameters.addDocument("doc-1", content);
-                content = new PkiData("0JvQsNCz0ZbQtNC90LAg0YPQutGA0LDRl9C90ZbQt9Cw0YbRltGP");
+                content = new PkiData(TestData.B64_STRING_GENTLE_UKRAINIZATION);
                 sign_parameters.addDocument("doc-2", content);
-                content = new PkiData("VGhpcyBpcyBiYXNlNjQgZW5jb2RlZCBkb2N1bWVudCBjb250ZW50Lg==");
+                content = new PkiData(TestData.B64_STRING_TEST);
                 Sign.DataTbs data_tbs = new Sign.DataTbs("doc-3 with custom Attributes (2 signed, 1 unsigned)", content);
                 data_tbs.addSignedAttribute(new Attribute(new PkiOid("1.2.3"), new PkiData("AgEB")));
                 data_tbs.addSignedAttribute(new Attribute(new PkiOid("1.2.3.4"), new PkiData("AQH/")));
@@ -699,24 +693,20 @@ public class TestLibrary {
             }
 
             // Отримуємо підпис та перевіряємо його
+            System.out.println("Signed data: ");
+            byte[] bytes = signed_data.toString().getBytes();
+            for (int i = 0; i < signed_data.toString().getBytes().length; i++) {
+                byte[] newBytes = new byte[1];
+                newBytes[0] = bytes[i];
+                System.out.print(new String(newBytes));
+                if (i > 0 && i % 3000 == 0) {
+                    System.out.println("");
+                }
+            }
+            System.out.println("");
+            System.out.println("Original content: " + original_content);
             Verify.Result report = lib.verify(signed_data, original_content);
             showReportVerify(report);
-
-            /*
-            // Перевіряємо чинність сертифікату за OCSP
-            CertificateVerificationReport certificateVerificationReport = lib.verifyCert(keyId, ValidationType.issuerAndOcsp);
-            System.out.println("Verify certificate status by OCSP: " + certificateVerificationReport.validateByOCSP().getStatus());
-            System.out.println("Full certificate verification report: " + gson.toJson(certificateVerificationReport) + "\n");
-
-            // Перевіряємо чинність сертифікату за CRL
-            certificateVerificationReport = lib.verifyCert(keyId, ValidationType.issuerAndCrl);
-            System.out.println("Verify certificate status by CRL: " + certificateVerificationReport.validateByCRL().getStatus());
-            System.out.println("Full certificate verification report: " + gson.toJson(certificateVerificationReport) + "\n");
-
-            // Перевіряємо чинність сертифікату за CRL на визначений час (у разі наявності мітки часу від підпису)
-            certificateVerificationReport = lib.verifyCert(keyId, "2020-08-31 16:00:00");
-            System.out.println("Verify certificate status at time 2020-08-31 16:00:00: " + certificateVerificationReport.validateByCRL().getStatus() + " reason: " + certificateVerificationReport.validateByCRL().getRevocationReason());
-            System.out.println("Full certificate verification report: " + gson.toJson(certificateVerificationReport) + "\n");*/
         }
 
         // Закриваємо сховище ключів
@@ -725,19 +715,10 @@ public class TestLibrary {
 
     @Test
     public void testVerify() throws Exception {
-        final boolean USE_DETACHED_DATA = true;
+        final PkiData signed_data = new PkiData(TestData.B64_P7S_3DA_DSTU4145);
+        final PkiData content = new PkiData(TestData.B64_STRING_TEST);
 
-        PkiData signeddata, content = null;
-        signeddata = new PkiData(TestData.B64_P7S_DSTU_WITH_TS);
-        //signeddata = new PkiData(TestData.B64_P7S_DSTU_DETACHED);
-        //signeddata = new PkiData(TestData.B64_P7S_DSTU_CMS);
-        //signeddata = new PkiData(TestData.B64_P7S_DSTU_DETACHED_WO_TIME);
-        if (USE_DETACHED_DATA) {
-            content = new PkiData(TestData.B64_P7S_DSTU_DETACHED_CONTENT);
-            //content = new PkiData(TestData.B64_P7S_DSTU_DETACHED_WO_TIME_CONTENT);
-        }
-
-        Verify.Result report = lib.verify(signeddata, content);
+        final Verify.Result report = lib.verify(signed_data, content);
         showReportVerify(report);
     }
 
@@ -746,7 +727,7 @@ public class TestLibrary {
         String file = testDir + "/test-fox.txt";
         PkiOid hashalgo = Oids.HashAlgo.Sha2.SHA256;
         PkiOid signalgo = Oids.SignAlgo.Ecdsa.ECDSA_WITH_SHA256;
-        PkiData bytes = new PkiData(TestData.B64_THE_QUICK_BROWN_FOX);
+        PkiData bytes = new PkiData(TestData.B64_STRING_THE_QUICK_BROWN_FOX);
 
         Digest.Result digest_result;
 
