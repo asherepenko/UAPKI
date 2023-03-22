@@ -29,14 +29,11 @@
 #define UAPKI_CER_STORE_H
 
 
-#include <string>
-#include <vector>
 #include "uapkic.h"
 #include "uapkif.h"
+#include "uapki-ns.h"
 #include "attribute-helper.h"
 #include "uapki-export.h"
-#include "uapki-ns.h"
-#include "verify-status.h"
 
 
 //#define DEBUG_CERSTOREITEM_INFO
@@ -47,9 +44,20 @@ class CerStore {
 public:
     enum class ValidationType : uint32_t {
         UNDEFINED   = 0,
-        CRL         = 1,
-        OCSP        = 2
+        NONE        = 1,
+        CHAIN       = 2,
+        CRL         = 3,
+        OCSP        = 4
     };  //  end enum ValidationType
+
+    enum class VerifyStatus : uint32_t {
+        UNDEFINED               = 0,
+        INDETERMINATE           = 1,
+        FAILED                  = 2,
+        INVALID                 = 3,
+        VALID_WITHOUT_KEYUSAGE  = 4,
+        VALID                   = 5
+    };  //  end enum VerifyStatus
 
     struct CertStatusInfo {
         const ValidationType
@@ -87,6 +95,8 @@ public:
         const Certificate_t*
                     cert;
         const ByteArray*
+                    baAuthorityKeyId;
+        const ByteArray*
                     baCertId;
         const char* keyAlgo;
         const ByteArray*
@@ -104,7 +114,7 @@ public:
         uint64_t    notAfter;
         uint32_t    keyUsage;
         bool        trusted;
-        CERTIFICATE_VERIFY::STATUS
+        VerifyStatus
                     verifyStatus;
         CertStatusInfo
                     certStatusByCrl;
@@ -137,6 +147,7 @@ public:
             const uint32_t bitNum,
             bool& bitValue
         ) const;
+        int verify (const CerStore::Item* cerIssuer);
 
     };  //  end struct Item
 
@@ -155,18 +166,49 @@ public:
         const bool permanent,
         const bool trusted,
         bool& isUnique,
-        const Item** cerStoreItem
+        Item** cerStoreItem
     );
-    int getCertByCertId (const ByteArray* baCertId, Item** cerStoreItem);
-    int getCertByEncoded (const ByteArray* baEncoded, Item** cerStoreItem);
-    int getCertByIndex (const size_t index, Item** cerStoreItem);
-    int getCertByKeyId (const ByteArray* baKeyId, Item** cerStoreItem);
-    int getCertBySID (const ByteArray* baSID, Item** cerStoreItem);
-    int getCertBySPKI (const ByteArray* baSPKI, Item** cerStoreItem);
-    int getCertBySubject (const ByteArray* baSubject, Item** cerStoreItem);
+    int getCertByCertId (
+        const ByteArray* baCertId,
+        Item** cerStoreItem
+    );
+    int getCertByEncoded (
+        const ByteArray* baEncoded,
+        Item** cerStoreItem
+    );
+    int getCertByIndex (
+        const size_t index,
+        Item** cerStoreItem
+    );
+    int getCertByIssuerAndSN (
+        const ByteArray* baIssuer,
+        const ByteArray* baSerialNumber,
+        Item** cerStoreItem
+    );
+    int getCertByKeyId (
+        const ByteArray* baKeyId,
+        Item** cerStoreItem
+    );
+    int getCertBySID (
+        const ByteArray* baSID,
+        Item** cerStoreItem
+    );
+    int getCertBySPKI (
+        const ByteArray* baSPKI,
+        Item** cerStoreItem
+    );
+    int getCertBySubject (
+        const ByteArray* baSubject,
+        Item** cerStoreItem
+    );
     int getChainCerts (
         const Item* cerSubject,
         std::vector<Item*>& chainCerts
+    );
+    int getChainCerts (
+        const Item* cerSubject,
+        std::vector<Item*>& chainCerts,
+        const ByteArray** baIssuerKeyId
     );
     int getCount (
         size_t& count
@@ -190,36 +232,71 @@ public:
     void reset (void);
 
 public:
+    static bool addCertIfUnique (
+        std::vector<Item*>& cerStoreItems,
+        Item* cerStoreItem
+    );
     static int calcKeyId (
         const HashAlg algoKeyId,
         const ByteArray* baPubkey,
         ByteArray** baKeyId
+    );
+    static int encodeIssuerAndSN (
+        const ByteArray* baIssuer,
+        const ByteArray* baSerialNumber,
+        ByteArray** baIssuerAndSN
+    );
+    static Item* findCertByCertId (
+        const std::vector<Item*>& cerStoreItems,
+        const ByteArray* baCertId
     );
     static int generateEssCertId (
         const Item* cerStoreItem,
         const UapkiNS::AlgorithmIdentifier& aidDigest,
         UapkiNS::EssCertId& essCertId
     );
+    static int issuerFromGeneralNames (
+        const ByteArray* baEncoded,
+        ByteArray** baIssuer
+    );
     static int issuerToGeneralNames (
         const ByteArray* baIssuer,
         ByteArray** baEncoded
+    );
+    static int keyIdFromSid (
+        const ByteArray* baSidEncoded,
+        ByteArray** baKeyId
+    );
+    static int keyIdToSid (
+        const ByteArray* baKeyId,
+        ByteArray** baSidEncoded
     );
     static int parseCert (
         const ByteArray* baEncoded,
         Item** cerStoreItem
     );
-    static int parseSID (
-        const ByteArray* baSID,
+    static int parseSid (
+        const ByteArray* baSidEncoded,
         ByteArray** baIssuer,
         ByteArray** baSerialNumber,
         ByteArray** baKeyId
     );
+    static ValidationType validationTypeFromStr (
+        const std::string& validationType
+    );
+    static const char* verifyStatusToStr (
+        const VerifyStatus status
+    );
 
 private:
     //  addItem - added unique item, return new-item or exists-item
-    Item* addItem (Item* cerStoreItem);
+    Item* addItem (
+        Item* cerStoreItem
+    );
     int loadDir (void);
-    int saveToFile (const Item* cerStoreItem);
+    int saveToFile (
+        const Item* cerStoreItem
+    );
 
 public:
     void saveStatToLog (

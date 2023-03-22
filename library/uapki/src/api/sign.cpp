@@ -69,6 +69,16 @@ enum class TsAttrType : uint32_t {
 };
 
 
+struct SignOptions {
+    bool ignoreCertStatus;
+
+    SignOptions (void)
+        : ignoreCertStatus(false)
+    {}
+
+};  //  end struct SignOptions
+
+
 static int get_info_signalgo_and_keyid (
         CmStorageProxy& storage,
         string& signAlgo,
@@ -110,6 +120,22 @@ static int get_info_signalgo_and_keyid (
     ret = (*baKeyId) ? RET_OK : RET_UAPKI_GENERAL_ERROR;
     return ret;
 }   //  get_info_signalgo_and_keyid
+
+static void parse_sign_options (
+        JSON_Object* joSignOptions,
+        UapkiNS::Doc::Sign::SigningDoc::SignParams& signParams,
+        SignOptions& signOptions
+)
+{
+    if (joSignOptions) {
+        if (
+            (signParams.signatureFormat == UapkiNS::SignatureFormat::CADES_BES) ||
+            (signParams.signatureFormat == UapkiNS::SignatureFormat::CADES_T)
+        ) {
+            signOptions.ignoreCertStatus = ParsonHelper::jsonObjectGetBoolean(joSignOptions, "ignoreCertStatus", false);
+        }
+    }
+}   //  parse_sign_options
 
 static int parse_sign_params (
         JSON_Object* joSignParams,
@@ -325,7 +351,7 @@ static int parse_docattrs_from_json (
         JSON_Object* jo_attr = json_array_get_object(ja_attrs, i);
         const string s_type = ParsonHelper::jsonObjectGetString(jo_attr, "type");
         sba_values.set(json_object_get_base64(jo_attr, "bytes"));
-        if (s_type.empty() || !oid_is_valid(s_type.c_str()) || (sba_values.size() == 0)) {
+        if (s_type.empty() || !oid_is_valid(s_type.c_str()) || sba_values.empty()) {
             return RET_UAPKI_INVALID_PARAMETER;
         }
         if (is_signedattrs) {
@@ -373,8 +399,8 @@ static int verify_ocsp_responsedata (
     int ret = RET_OK;
     UapkiNS::SmartBA sba_responderid;
     UapkiNS::VectorBA vba_certs;
-    UapkiNS::Ocsp::ResponderIdType responder_idtype = UapkiNS::Ocsp::ResponderIdType::UNDEFINED;
-    SIGNATURE_VERIFY::STATUS status_sign = SIGNATURE_VERIFY::STATUS::UNDEFINED;
+    UapkiNS::Ocsp::ResponderIdType responderid_type = UapkiNS::Ocsp::ResponderIdType::UNDEFINED;
+    UapkiNS::SignatureVerifyStatus status_sign = UapkiNS::SignatureVerifyStatus::UNDEFINED;
 
     DO(ocspClient.getCerts(vba_certs));
     for (auto& it : vba_certs) {
@@ -383,12 +409,12 @@ static int verify_ocsp_responsedata (
         it = nullptr;
     }
 
-    DO(ocspClient.getResponderId(responder_idtype, &sba_responderid));
-    if (responder_idtype == UapkiNS::Ocsp::ResponderIdType::BY_NAME) {
+    DO(ocspClient.getResponderId(responderid_type, &sba_responderid));
+    if (responderid_type == UapkiNS::Ocsp::ResponderIdType::BY_NAME) {
         DO(cerStore.getCertBySubject(sba_responderid.get(), cerResponder));
     }
     else {
-        //  responder_idtype == OcspHelper::ResponderIdType::BY_KEY
+        //  responderid_type == OcspHelper::ResponderIdType::BY_KEY
         DO(cerStore.getCertByKeyId(sba_responderid.get(), cerResponder));
     }
 
@@ -468,7 +494,7 @@ static int process_crl (
 
         if (crl->nextUpdate < validateTime) {
             DEBUG_OUTCON(puts("process_crl(), Need get newest CRL. Again... stop it!"));
-            SET_ERROR(RET_UAPKI_CRL_NOT_FOUND);
+            SET_ERROR(RET_UAPKI_CRL_EXPIRED);
         }
     }
 
@@ -497,6 +523,7 @@ static int get_cert_status_by_crl (
         UapkiNS::Doc::Sign::SigningDoc::CerDataItem& cerDataItem
 )
 {
+    //puts("TRACE: get_cert_status_by_crl()");
     int ret = RET_OK;
     CerStore& cer_store = *get_cerstore();
     CrlStore& crl_store = *get_crlstore();
@@ -530,7 +557,7 @@ static int get_cert_status_by_crl (
         cert_status = UapkiNS::CertStatus::GOOD;
     }
     else {
-        const CrlStore::RevokedCertItem* revcert_before = CrlStore::foundNearBefore(revoked_items, validate_time);
+        const CrlStore::RevokedCertItem* revcert_before = CrlStore::findNearBefore(revoked_items, validate_time);
         if (revcert_before) {
             DEBUG_OUTCON(printf("revcert_before: [%lld]  revocationDate: %lld  crlReason: %i  invalidityDate: %lld\n",
                 revcert_before->index, revcert_before->revocationDate, revcert_before->crlReason, revcert_before->invalidityDate));
@@ -571,6 +598,7 @@ static int get_cert_status_by_ocsp (
         UapkiNS::Doc::Sign::SigningDoc::CerDataItem& cerDataItem
 )
 {
+    //puts("TRACE: get_cert_status_by_ocsp()");
     int ret = RET_OK;
     CerStore& cer_store = *get_cerstore();
     const LibraryConfig::OcspParams& ocsp_params = signParams.ocsp;
@@ -623,7 +651,7 @@ static int get_cert_status_by_ocsp (
         if (ret != RET_OK) {
             SET_ERROR(ret);
         }
-        else if (sba_resp.size() == 0) {
+        else if (sba_resp.empty()) {
             SET_ERROR(RET_UAPKI_OCSP_RESPONSE_INVALID);
         }
     }
@@ -635,16 +663,16 @@ static int get_cert_status_by_ocsp (
         DO(ocsp_helper.checkNonce());
         DO(ocsp_helper.scanSingleResponses());
 
-        const UapkiNS::Ocsp::OcspHelper::OcspRecord& ocsp_record = ocsp_helper.getOcspRecord(0); //  Work with one OCSP request that has one certificate
+        const UapkiNS::Ocsp::OcspHelper::SingleResponseInfo& singleresp_info = ocsp_helper.getSingleResponseInfo(0); //  Work with one OCSP request that has one certificate
         if (need_update) {
             DO(cerDataItem.pcsiSubject->certStatusByOcsp.set(
-                ocsp_record.status,
-                ocsp_record.msThisUpdate + UapkiNS::Ocsp::OFFSET_EXPIRE_DEFAULT,
+                singleresp_info.certStatus,
+                singleresp_info.msThisUpdate + UapkiNS::Ocsp::OFFSET_EXPIRE_DEFAULT,
                 sba_resp.get()
             ));
         }
 
-        switch (ocsp_record.status) {
+        switch (singleresp_info.certStatus) {
         case UapkiNS::CertStatus::GOOD:
             (void)cerDataItem.basicOcspResponse.set(ocsp_helper.getBasicOcspResponseEncoded(true));
             DO(ocsp_helper.getOcspIdentifier(&cerDataItem.ocspIdentifier));
@@ -687,6 +715,7 @@ int uapki_sign (
     if (!storage->keyIsSelected()) return RET_UAPKI_KEY_NOT_SELECTED;
 
     int ret = RET_OK;
+    SignOptions sign_options;
     UapkiNS::Doc::Sign::SigningDoc::SignParams sign_params;
     size_t cnt_docs = 0;
     JSON_Array* ja_results = nullptr;
@@ -696,6 +725,7 @@ int uapki_sign (
     UapkiNS::VectorBA vba_signatures;
 
     DO(parse_sign_params(json_object_get_object(joParams, "signParams"), sign_params));
+    parse_sign_options(json_object_get_object(joParams, "options"), sign_params, sign_options);
 
     sign_params.ocsp = config->getOcsp();
     if (sign_params.includeContentTS || sign_params.includeSignatureTS) {
@@ -730,15 +760,18 @@ int uapki_sign (
     if ((sign_params.signatureFormat != UapkiNS::SignatureFormat::RAW) && ((!sign_params.sidUseKeyId || sign_params.includeCert))) {
         DO(cer_store->getCertByKeyId(sign_params.keyId.get(), &sign_params.signer.pcsiSubject));
         if (sign_params.isCadesFormat) {
+            if (!sign_options.ignoreCertStatus) {
+                if ((sign_params.signatureFormat == UapkiNS::SignatureFormat::CADES_C) ||
+                    ((sign_params.signatureFormat == UapkiNS::SignatureFormat::CADES_BES) && config->getOffline())
+                ) {
+                    DO(get_cert_status_by_crl(sign_params.signer));
+                }
+                else {
+                    DO(get_cert_status_by_ocsp(sign_params, sign_params.signer));
+                }
+            }
+
             UapkiNS::EssCertId ess_certid;
-
-            if (sign_params.signatureFormat != UapkiNS::SignatureFormat::CADES_C) {
-                DO(get_cert_status_by_ocsp(sign_params, sign_params.signer));
-            }
-            else {
-                DO(get_cert_status_by_crl(sign_params.signer));
-            }
-
             DO(sign_params.signer.pcsiSubject->generateEssCertId(sign_params.aidDigest, ess_certid));
             DO(UapkiNS::Doc::Sign::SigningDoc::encodeSigningCertificate(ess_certid, sign_params.attrSigningCert));
             if (sign_params.isCadesCXA) {

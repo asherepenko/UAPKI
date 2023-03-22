@@ -28,12 +28,14 @@
 #ifndef DOC_VERIFY_H
 #define DOC_VERIFY_H
 
+#include "uapki-ns.h"
 #include "archive-timestamp-helper.h"
 #include "cer-store.h"
 #include "crl-store.h"
+#include "ocsp-helper.h"
 #include "signature-format.h"
 #include "signeddata-helper.h"
-#include "uapki-ns.h"
+#include "tsp-helper.h"
 #include "verify-status.h"
 
 
@@ -43,54 +45,397 @@ namespace Doc {
 
 namespace Verify {
 
+enum class CertEntity : uint32_t {
+    UNDEFINED       = 0,
+    SIGNER          = 1,
+    INTERMEDIATE    = 2,
+    CRL             = 3,
+    OCSP            = 4,
+    TSP             = 5,
+    CA              = 6,
+    ROOT            = 7
+};  //  end enum CertEntity
+
+enum class DataSource : uint32_t {
+    UNDEFINED       = 0,
+    SIGNATURE       = 1,
+    STORE           = 2
+};  //  end enum DataSource
+
+enum class ValidationStatus : uint32_t {
+    UNDEFINED       = 0,
+    INDETERMINATE   = 1,
+    TOTAL_FAILED    = 2,
+    TOTAL_VALID     = 3
+};  //  end enum ValidationStatus
+
 
 struct AttrTimeStamp {
+    Tsp::TsTokenParser
+                tsTokenParser;
     std::string policy;
     std::string hashAlgo;
     SmartBA     hashedMessage;
     uint64_t    msGenTime;
     CerStore::Item*
-                signerCertId;
-    SIGNATURE_VERIFY::STATUS
+                csiSigner;
+    DigestVerifyStatus
                 statusDigest;
-    SIGNATURE_VERIFY::STATUS
+    SignatureVerifyStatus
                 statusSignature;
 
     AttrTimeStamp (void);
     ~AttrTimeStamp (void);
 
     bool isPresent (void) const;
-    int  verifyDigest (const ByteArray* baData);
+    int parse (
+        const ByteArray* baEncoded
+    );
+    int verifyDigest (
+        const ByteArray* baData,
+        const bool isDigest = false
+    );
 
 };  //  end struct AttrTimeStamp
 
+
+struct CadesXlInfo {
+    bool        isPresentCertRefs;
+    bool        isPresentRevocRefs;
+    bool        isPresentCertVals;
+    bool        isPresentRevocVals;
+    std::vector<OtherCertId>
+                certRefs;
+    VectorBA    certValues;
+    AttributeHelper::RevocationRefsParser
+                revocationRefsParser;
+    AttributeHelper::RevocationValuesParser
+                revocationValuesParser;
+    VectorBA    expectedCertsByIssuerAndSN;
+    DigestVerifyStatus
+                statusCertRefs;
+    std::vector<DigestVerifyStatus>
+                statusesCertRefs;
+
+    CadesXlInfo (void);
+
+    bool isPresentCadesC (void) const {
+        return (isPresentCertRefs && isPresentRevocRefs);
+    }
+    bool isPresentCadesXL (void) const {
+        return (isPresentCertVals && isPresentRevocVals);
+    }
+    int parseCertValues (
+        const ByteArray* baValues
+    );
+    int parseCertificateRefs (
+        const ByteArray* baValues
+    );
+    int parseRevocationRefs (
+        const ByteArray* baValues
+    );
+    int parseRevocationValues (
+        const ByteArray* baValues
+    );
+    int verifyCertRefs (
+        CerStore* cerStore
+    );
+
+};  //  end struct CadesXlInfo
+
+
+struct ResultValidationByCrl {
+    CertStatus  certStatus;
+    CrlStore::Item*
+                crlStoreItem;
+    CerStore::Item*
+                cerIssuer;
+    CrlStore::RevokedCertItem
+                revokedCertItem;
+
+    ResultValidationByCrl (void)
+        : certStatus(CertStatus::UNDEFINED)
+        , crlStoreItem(nullptr)
+        , cerIssuer(nullptr)
+    {}
+
+};  //  end struct ResultValidationByCrl
+
+struct ResultValidationByOcsp : public UapkiNS::Ocsp::ResponseInfo {
+    DataSource  dataSource;
+
+    ResultValidationByOcsp (void)
+        : dataSource(DataSource::UNDEFINED)
+    {}
+
+};  //  end struct ResultValidationByOcsp
+
+
+class CertChainItem {
+    CertEntity  m_CertEntity;
+    CerStore::Item*
+                m_CsiSubject;
+    DataSource  m_DataSource;
+    std::string m_CommonName;
+    CerStore::Item*
+                m_CsiIssuer;
+    bool        m_IsExpired;
+    bool        m_IsSelfSigned;
+    CerStore::ValidationType
+                m_ValidationType;
+    UapkiNS::CertStatus
+                m_CertStatus;
+    ResultValidationByCrl
+                m_ResultValidationByCrl;
+    ResultValidationByOcsp
+                m_ResultValidationByOcsp;
+
+public:
+    CertChainItem (
+        const CertEntity iCertEntity,
+        CerStore::Item* iCsiSubject
+    );
+    ~CertChainItem (void);
+
+public:
+    bool checkValidityTime (
+        const uint64_t validateTime
+    );
+    int decodeName (void);
+    void setCertStatus (
+        const UapkiNS::CertStatus certStatus
+    );
+    void setDataSource (
+        const DataSource dataSource
+    );
+    void setIssuerAndVerify (
+        CerStore::Item* csiIssuer
+    );
+    void setValidationType (
+        const CerStore::ValidationType validationType
+    );
+
+public:
+    CertEntity getCertEntity (void) const {
+        return m_CertEntity;
+    }
+    UapkiNS::CertStatus getCertStatus (void) const {
+        return m_CertStatus;
+    }
+    const std::string& getCommonName (void) const {
+        return m_CommonName;
+    }
+    DataSource getDataSource (void) const {
+        return m_DataSource;
+    }
+    CerStore::Item* getIssuer (void) const {
+        return m_CsiIssuer;
+    }
+    const ByteArray* getIssuerCertId (void) const {
+        return (m_CsiIssuer) ? m_CsiIssuer->baCertId : nullptr;
+    }
+    const ResultValidationByCrl& getResultValidationByCrl (void) const {
+        return m_ResultValidationByCrl;
+    }
+    ResultValidationByCrl& getResultValidationByCrl (void) {
+        return m_ResultValidationByCrl;
+    }
+    const ResultValidationByOcsp& getResultValidationByOcsp (void) const {
+        return m_ResultValidationByOcsp;
+    }
+    ResultValidationByOcsp& getResultValidationByOcsp (void) {
+        return m_ResultValidationByOcsp;
+    }
+    CerStore::Item* getSubject (void) const {
+        return m_CsiSubject;
+    }
+    const ByteArray* getSubjectCertId (void) const {
+        return (m_CsiSubject) ? m_CsiSubject->baCertId : nullptr;
+    }
+    CerStore::ValidationType getValidationType (void) const {
+        return m_ValidationType;
+    }
+    CerStore::VerifyStatus getVerifyStatus (void) const {
+        return (m_CsiSubject) ? m_CsiSubject->verifyStatus : CerStore::VerifyStatus::UNDEFINED;
+    }
+    bool isExpired (void) const {
+        return m_IsExpired;
+    }
+    bool isSelfSigned (void) const {
+        return m_IsSelfSigned;
+    }
+    bool isTrusted (void) const {
+        return (m_CsiSubject) ? m_CsiSubject->trusted : false;
+    }
+
+};  //  end class CertChainItem
+
+
+class ExpectedCertItem {
+public:
+    enum class IdType : uint32_t {
+        UNDEFINED = 0,
+        CER_IDTYPE,
+        ORS_IDTYPE  //  Warning: OCSP_RESPONSE - clash with wincrypt.h
+    };  //  end enum IdType
+
+private:
+    const CertEntity
+                m_CertEntity;
+    IdType      m_IdType;
+    SmartBA     m_KeyId;
+    SmartBA     m_Name;
+    SmartBA     m_SerialNumber;
+
+public:
+    ExpectedCertItem (
+        const CertEntity iCertEntity
+    );
+
+public:
+    int setResponderId (
+        const bool isKeyId,
+        const ByteArray* baNameEncoded
+    );
+    int setSignerIdentifier (
+        const ByteArray* baKeyIdOrSN,
+        const ByteArray* baName
+    );
+
+public:
+    CertEntity getCertEntity (void) const {
+        return m_CertEntity;
+    }
+    IdType getIdType (void) const {
+        return m_IdType;
+    }
+    const ByteArray* getKeyId (void) const {
+        return m_KeyId.get();
+    }
+    const ByteArray* getName (void) const {
+        return m_Name.get();
+    }
+    const ByteArray* getSerialNumber (void) const {
+        return m_SerialNumber.get();
+    }
+
+};  //  end class ExpectedCertItem
+
+
+class ExpectedCrlItem {
+    SmartBA     m_AuthorityKeyId;
+    SmartBA     m_Name;
+    std::string m_Url;
+    //  If present Full-CRL
+    uint64_t    m_ThisUpdate;
+    uint64_t    m_NextUpdate;
+    SmartBA     m_BaCrlNumber;
+
+public:
+    ExpectedCrlItem (void);
+
+public:
+    int set (
+        const CerStore::Item* cerSubject,
+        const CrlStore::Item* crlFull
+    );
+
+public:
+    const ByteArray* getAuthorityKeyId (void) const {
+        return m_AuthorityKeyId.get();
+    }
+    const ByteArray* getCrlNumber (void) const {
+        return m_BaCrlNumber.get();
+    }
+    const ByteArray* getName (void) const {
+        return m_Name.get();
+    }
+    uint64_t getNextUpdate (void) const {
+        return m_NextUpdate;
+    }
+    uint64_t getThisUpdate (void) const {
+        return m_ThisUpdate;
+    }
+    std::string getUrl (void) const {
+        return m_Url;
+    }
+    bool isPresentFullCrl (void) const {
+        return !m_BaCrlNumber.empty();
+    }
+
+};  //  end class ExpectedCrlItem
+
+
+struct VerifyOptions {
+    enum class ValidationType : uint32_t {
+        UNDEFINED   = 0,
+        STRUCT      = 1,
+        CHAIN       = 2,
+        FULL        = 3
+    };  //  end enum ValidationType
+
+    ValidationType
+                validationType;
+    bool        onlyCrl;
+
+    VerifyOptions (void)
+        : validationType(ValidationType::UNDEFINED)
+        , onlyCrl(false)
+    {}
+
+};  //  end struct VerifyOptions
+
+
 class VerifiedSignerInfo {
+    struct ListAddedCerts {
+        std::vector<CerStore::Item*> certValues;    //  Certs from attribute certValues
+        std::vector<CerStore::Item*> fromOnline;    //  Certs from OCSP-response
+        std::vector<CerStore::Item*> fromSignature; //  All certs from SignerInfo (including OCSP/TSP-response)
+        std::vector<CerStore::Item*> ocsp;
+        std::vector<CerStore::Item*> tsp;
+    };  //  end struct ListAddedCerts
+
     CerStore*   m_CerStore;
+    bool        m_IsDigest;
+    int         m_LastError;
     Pkcs7::SignedDataParser::SignerInfo
                 m_SignerInfo;
     CerStore::Item*
-                m_CerStoreItem;
-    SIGNATURE_VERIFY::STATUS
+                m_CsiSigner;
+    ValidationStatus
+                m_ValidationStatus;
+    SignatureVerifyStatus
                 m_StatusSignature;
-    SIGNATURE_VERIFY::STATUS
+    DigestVerifyStatus
                 m_StatusMessageDigest;
-    bool        m_IsDigest;
     uint64_t    m_SigningTime;
-    SignatureFormat
-                m_SignatureFormat;
     std::vector<EssCertId>
                 m_EssCerts;
-    SIGNATURE_VERIFY::STATUS
+    DataVerifyStatus
                 m_StatusEssCert;
     std::string m_SigPolicyId;
     AttrTimeStamp
                 m_ContentTS;
     AttrTimeStamp
                 m_SignatureTS;
+    CadesXlInfo m_CadesXlInfo;
     AttrTimeStamp
                 m_ArchiveTS;
     Pkcs7::ArchiveTs3Helper
                 m_ArchiveTsHelper;
+    SignatureFormat
+                m_SignatureFormat;
+    bool        m_IsValidSignatures;
+    bool        m_IsValidDigests;
+    uint64_t    m_BestSignatureTime;
+    std::vector<CertChainItem*>
+                m_CertChainItems;
+    std::vector<ExpectedCertItem*>
+                m_ExpectedCertItems;
+    std::vector<ExpectedCrlItem*>
+                m_ExpectedCrlItems;
+    ListAddedCerts
+                m_ListAddedCerts;
 
 public:
     VerifiedSignerInfo (void);
@@ -100,23 +445,99 @@ public:
         CerStore* iCerStore,
         const bool isDigest
     );
-    int verifyArchiveTS (
-        std::vector<const CerStore::Item*>& certs,
-        std::vector<const CrlStore::Item*>& crls
+    int addCertChainItem (
+        const CertEntity certEntity,
+        CerStore::Item* cerStoreItem,
+        CertChainItem** certChainItem
     );
-    int verifySignerInfo (
+    int addCertChainItem (
+        const CertEntity certEntity,
+        CerStore::Item* cerStoreItem,
+        CertChainItem** certChainItem,
+        bool& isNewItem
+    );
+    int addCrlCertsToChain (
+        const uint64_t validateTime
+    );
+    int addExpectedCertItem (
+        const CertEntity certEntity,
+        const ByteArray* baSidEncoded
+    );
+    int addExpectedCrlItem (
+        CerStore::Item* cerSubject,
+        CrlStore::Item* crlFull
+    );
+    int addOcspCertsToChain (
+        const uint64_t validateTime
+    );
+    int buildCertChain (void);
+    int certValuesToStore (void);
+    void determineSignFormat (void);
+    const char* getValidationStatus (void) const;
+    std::vector<std::string> getWarningMessages (void) const;
+    int parseAttributes (void);
+    int setRevocationValuesForChain (
+        const uint64_t validateTime
+    );
+    void validateSignFormat (
+        const uint64_t validateTime
+    );
+    void validateStatusCerts (void);
+    void validateValidityTimeCerts (
+        const uint64_t validateTime
+    );
+    int verifyArchiveTimeStamp (
+        const std::vector<CerStore::Item*>& certs,
+        const std::vector<CrlStore::Item*>& crls
+    );
+    int verifyCertificateRefs (void);
+    int verifyContentTimeStamp (
         const ByteArray* baContent
     );
+    int verifyMessageDigest (
+        const ByteArray* baContent
+    );
+    int verifyOcspResponse (
+        Ocsp::OcspHelper& ocspClient,
+        ResultValidationByOcsp& resultValByOcsp
+    );
+    int verifySignatureTimeStamp (void);
+    int verifySignedAttribute (void);
+    int verifySigningCertificateV2 (void);
 
 public:
     const AttrTimeStamp& getArchiveTS (void) const {
         return m_ArchiveTS;
     }
+    uint64_t getBestSignatureTime (void) const {
+        return m_BestSignatureTime;
+    }
+    CadesXlInfo& getCadesXlInfo (void) {
+        return m_CadesXlInfo;
+    }
     CerStore* getCerStore (void) const {
         return m_CerStore;
     }
+    const std::vector<CertChainItem*>& getCertChainItems (void) const {
+        return m_CertChainItems;
+    }
     const AttrTimeStamp& getContentTS (void) const {
         return m_ContentTS;
+    }
+    const std::vector<ExpectedCertItem*> getExpectedCertItems (void) const {
+        return m_ExpectedCertItems;
+    }
+    const std::vector<ExpectedCrlItem*> getExpectedCrlItems (void) const {
+        return m_ExpectedCrlItems;
+    }
+    const ListAddedCerts& getListAddedCerts (void) const {
+        return m_ListAddedCerts;
+    }
+    ListAddedCerts& getListAddedCerts (void) {
+        return m_ListAddedCerts;
+    }
+    AttributeHelper::RevocationRefsParser& getRevocationRefs (void) {
+        return m_CadesXlInfo.revocationRefsParser;
     }
     const std::string& getSigPolicyId (void) const {
         return m_SigPolicyId;
@@ -128,7 +549,7 @@ public:
         return m_SignatureTS;
     }
     const ByteArray* getSignerCertId (void) const {
-        return (m_CerStoreItem) ? m_CerStoreItem->baCertId : nullptr;
+        return (m_CsiSigner) ? m_CsiSigner->baCertId : nullptr;
     }
     Pkcs7::SignedDataParser::SignerInfo& getSignerInfo (void) {
         return m_SignerInfo;
@@ -136,37 +557,87 @@ public:
     uint64_t getSigningTime (void) const {
         return m_SigningTime;
     }
-    SIGNATURE_VERIFY::STATUS getStatusEssCert (void) const {
+    DataVerifyStatus getStatusEssCert (void) const {
         return m_StatusEssCert;
     }
-    SIGNATURE_VERIFY::STATUS getStatusMessageDigest (void) const {
+    DigestVerifyStatus getStatusMessageDigest (void) const {
         return m_StatusMessageDigest;
     }
-    SIGNATURE_VERIFY::STATUS getStatusSignature (void) const {
+    SignatureVerifyStatus getStatusSignature (void) const {
         return m_StatusSignature;
+    }
+    int getLastError (void) const {
+        return m_LastError;
+    }
+    bool isValidDigests (void) const {
+        return m_IsValidDigests;
+    }
+    bool isValidSignatures (void) const {
+        return m_IsValidSignatures;
     }
 
 private:
-    int decodeSignedAttrs (
+    int parseSignedAttrs (
         const std::vector<Attribute>& signedAattrs
     );
-    int decodeUnsignedAttrs (
+    int parseUnsignedAttrs (
         const std::vector<Attribute>& unsignedAttrs
     );
-    int verifySigningCertificateV2 (void);
+    int verifyAttrTimestamp (
+        AttrTimeStamp& attrTS
+    );
 
 };  //  end class VerifiedSignerInfo
 
 
-int decodeAttrTimestamp (
-    const ByteArray* baValues,
-    AttrTimeStamp& attrTS
+struct VerifySignedDoc {
+    CerStore*   cerStore;
+    CrlStore*   crlStore;
+    const uint64_t
+                validateTime;
+    const UapkiNS::Doc::Verify::VerifyOptions&
+                verifyOptions;
+    UapkiNS::Pkcs7::SignedDataParser
+                sdataParser;
+    const ByteArray*
+                refContent;
+    std::vector<CerStore::Item*>
+                addedCerts;
+    std::vector<CrlStore::Item*>
+                addedCrls;
+    std::vector<UapkiNS::Doc::Verify::VerifiedSignerInfo>
+                verifiedSignerInfos;
+
+    VerifySignedDoc (
+        CerStore* iCerStore,
+        CrlStore* iCrlStore,
+        const UapkiNS::Doc::Verify::VerifyOptions& iVerifyOptions
+    );
+    ~VerifySignedDoc (void);
+
+    int parse (const ByteArray* baSignature);
+    void getContent (const ByteArray* baContent);
+    int addCertsToStore (void);
+    void detectCertSources (void);
+    int getLastError (void);
+
+};  //  end struct VerifyOptions
+
+
+const char* certEntityToStr (
+    const CertEntity certEntity
 );
 
-int verifySignedData (
-    CerStore& cerStore,
-    Pkcs7::SignedDataParser& sdataParser,
-    CerStore::Item** cerSigner
+const char* dataSourceToStr (
+    const DataSource dataSource
+);
+
+const char* validationStatusToStr (
+    const ValidationStatus validationStatus
+);
+
+VerifyOptions::ValidationType validationTypeFromStr (
+    const std::string& validationType
 );
 
 

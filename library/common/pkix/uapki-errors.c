@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2022, The UAPKI Project Authors.
+ * Copyright (c) 2023, The UAPKI Project Authors.
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions are
@@ -25,7 +25,7 @@
  * SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 
-//  Last update: 2022-12-05
+//  Last update: 2023-03-15
 
 #include <stddef.h>
 
@@ -203,8 +203,8 @@ static const char* STR_UAPKI_ERRORS[COUNT_UAPKI_ERRORS] = {
     "ATTRIBUTE_NOT_PRESENT",        //  (UAPKI_ERROR_NAME_CODE | 0x00000035)
     "EXTENSION_NOT_PRESENT",        //  (UAPKI_ERROR_NAME_CODE | 0x00000036)
     "EXTENSION_NOT_SET_CRITICAL",   //  (UAPKI_ERROR_NAME_CODE | 0x00000037)
-    "",
-    "",
+    "INVALID_COUNT_ITEMS",          //  (UAPKI_ERROR_NAME_CODE | 0x00000038)
+    "INVALID_DIGEST",               //  (UAPKI_ERROR_NAME_CODE | 0x00000039)
     "",
     "",
     "",
@@ -232,7 +232,7 @@ static const char* STR_UAPKI_ERRORS[COUNT_UAPKI_ERRORS] = {
     "CRL_URL_NOT_PRESENT",              //  (UAPKI_ERROR_NAME_CODE | 0x00000051)
     "CRL_NOT_DOWNLOADED",               //  (UAPKI_ERROR_NAME_CODE | 0x00000052)
     "CRL_NOT_FOUND",                    //  (UAPKI_ERROR_NAME_CODE | 0x00000053)
-    "",
+    "CRL_EXPIRED",                      //  (UAPKI_ERROR_NAME_CODE | 0x00000054)
     "",
     "",
     "",

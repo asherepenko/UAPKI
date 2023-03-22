@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2022, The UAPKI Project Authors.
+ * Copyright (c) 2023, The UAPKI Project Authors.
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions are
@@ -219,6 +219,22 @@ cleanup:
     return ret;
 }
 
+int CerStoreUtils::nameToJson (
+        JSON_Object* joResult,
+        const ByteArray* baEncoded
+)
+{
+    int ret = RET_OK;
+    Name_t* name = nullptr;
+
+    CHECK_NOT_NULL(name = (Name_t*)asn_decode_ba_with_alloc(get_Name_desc(), baEncoded));
+
+    DO(nameToJson(joResult, *name));
+
+cleanup:
+    asn_free(get_Name_desc(), name);
+    return ret;
+}
 
 int CerStoreUtils::nameToJson (JSON_Object* joResult, const Name_t& name)
 {
@@ -245,6 +261,68 @@ cleanup:
     ::free(s_oid);
     ::free(s_value);
     return ret;
+}
+
+int CerStoreUtils::ocspIdentifierToJson (
+        JSON_Object* joResult,
+        const ByteArray* baEncoded
+)
+{
+    int ret = RET_OK;
+    OcspIdentifier_t* ocsp_identifier = nullptr;
+    UapkiNS::SmartBA sba_keyid;
+    uint64_t ms_producedat = 0;
+
+    CHECK_NOT_NULL(ocsp_identifier = (OcspIdentifier_t*)asn_decode_ba_with_alloc(get_OcspIdentifier_desc(), baEncoded));
+
+    //  =ocspResponderID=
+    switch (ocsp_identifier->ocspResponderID.present) {
+    case ResponderID_PR_byName:
+        DO_JSON(json_object_set_value(joResult, "responderId", json_value_init_object()));
+        DO(CerStoreUtils::nameToJson(json_object_get_object(joResult, "responderId"), ocsp_identifier->ocspResponderID.choice.byName));
+        break;
+    case ResponderID_PR_byKey:
+        DO(asn_OCTSTRING2ba(&ocsp_identifier->ocspResponderID.choice.byKey, &sba_keyid));
+        DO(json_object_set_hex(joResult, "responderId", sba_keyid.get()));
+        break;
+    default:
+        SET_ERROR(RET_UAPKI_INVALID_STRUCT);
+    }
+    //  =producedAt=
+    DO(asn_decodevalue_gentime(&ocsp_identifier->producedAt, &ms_producedat));
+    DO_JSON(json_object_set_string(joResult, "producedAt", TimeUtils::mstimeToFormat(ms_producedat).c_str()));
+
+cleanup:
+    asn_free(get_OcspIdentifier_desc(), ocsp_identifier);
+    return ret;
+}
+
+int CerStoreUtils::rdnameFromName (
+        const Name_t& name,
+        const char* type,
+        string& value
+)
+{
+    if (name.present != Name_PR_rdnSequence) return RET_UAPKI_INVALID_STRUCT;
+    if (!type) return RET_UAPKI_INVALID_PARAMETER;
+
+    for (size_t i = 0; i < name.choice.rdnSequence.list.count; i++) {
+        const RelativeDistinguishedName_t* rdname_src = name.choice.rdnSequence.list.array[i];
+        for (size_t j = 0; j < rdname_src->list.count; j++) {
+            const AttributeTypeAndValue_t* attr = rdname_src->list.array[j];
+            if (OID_is_equal_oid(&attr->type, type)) {
+                char* s_value = nullptr;
+                const int ret = asn_decode_anystring(attr->value.buf, (const size_t)attr->value.size, &s_value);
+                if (ret != RET_OK) return ret;
+
+                value = string(s_value);
+                ::free(s_value);
+                break;
+            }
+        }
+    }
+
+    return RET_OK;
 }
 
 int CerStoreUtils::signatureInfoToJson (JSON_Object* joResult, const CerStore::Item* cerStoreItem)
@@ -356,40 +434,40 @@ cleanup:
     return ret;
 }
 
-int CerStoreUtils::verify (const CerStore::Item* cerSubject, const CerStore::Item* cerIssuer)
+
+int CrlStoreUtils::crlIdentifierToJson (
+        JSON_Object* joResult,
+        const ByteArray* baEncoded
+)
 {
     int ret = RET_OK;
-    X509Tbs_t* x509_cert = nullptr;
-    ByteArray* ba_signvalue = nullptr;
-    ByteArray* ba_tbs = nullptr;
-    char* s_signalgo = nullptr;
+    CrlIdentifier_t* crl_identifier = nullptr;
+    uint64_t ms_issuedtime = 0;
 
-    CHECK_PARAM(cerSubject != nullptr);
-    CHECK_PARAM(cerIssuer != nullptr);
+    CHECK_NOT_NULL(crl_identifier = (CrlIdentifier_t*)asn_decode_ba_with_alloc(get_CrlIdentifier_desc(), baEncoded));
 
-    CHECK_NOT_NULL(x509_cert = (X509Tbs_t*)asn_decode_ba_with_alloc(get_X509Tbs_desc(), cerSubject->baEncoded));
-    CHECK_NOT_NULL(ba_tbs = ba_alloc_from_uint8(x509_cert->tbsData.buf, x509_cert->tbsData.size));
-
-    DO(asn_oid_to_text(&cerSubject->cert->signatureAlgorithm.algorithm, &s_signalgo));
-    if (cerSubject->algoKeyId == HASH_ALG_GOST34311) {
-        DO(asn_decodevalue_bitstring_encap_octet(&cerSubject->cert->signature, &ba_signvalue));
+    //  =crlIssuer=
+    DO_JSON(json_object_set_value(joResult, "crlIssuer", json_value_init_object()));
+    DO(CerStoreUtils::nameToJson(json_object_get_object(joResult, "crlIssuer"), crl_identifier->crlissuer));
+    //  =crlIssuedTime=
+    DO(asn_decodevalue_utctime(&crl_identifier->crlIssuedTime, &ms_issuedtime));
+    DO_JSON(json_object_set_string(joResult, "crlIssuedTime", TimeUtils::mstimeToFormat(ms_issuedtime).c_str()));
+    //  =crlNumber= (optional)
+    if (crl_identifier->crlNumber) {
+        UapkiNS::SmartBA sba_number;
+        DO(asn_INTEGER2ba(crl_identifier->crlNumber, &sba_number));
+        DO(json_object_set_hex(joResult, "crlNumber", sba_number.get()));
     }
-    else {
-        DO(asn_BITSTRING2ba(&cerSubject->cert->signature, &ba_signvalue));
-    }
-
-    ret = verify_signature(s_signalgo, ba_tbs, false, cerIssuer->baSPKI, ba_signvalue);
 
 cleanup:
-    asn_free(get_X509Tbs_desc(), x509_cert);
-    ba_free(ba_signvalue);
-    ba_free(ba_tbs);
-    ::free(s_signalgo);
+    asn_free(get_CrlIdentifier_desc(), crl_identifier);
     return ret;
 }
 
-
-int CrlStoreUtils::infoToJson (JSON_Object* joResult, const CrlStore::Item* crlStoreItem)
+int CrlStoreUtils::infoToJson (
+        JSON_Object* joResult,
+        const CrlStore::Item* crlStoreItem
+)
 {
     int ret = RET_OK;
     uint32_t cnt_revcerts = 0;
@@ -406,24 +484,26 @@ int CrlStoreUtils::infoToJson (JSON_Object* joResult, const CrlStore::Item* crlS
     s_time = TimeUtils::mstimeToFormat(crlStoreItem->nextUpdate);
     DO_JSON(json_object_set_string(joResult, "nextUpdate", s_time.c_str()));
 
-
     DO_JSON(ParsonHelper::jsonObjectSetUint32(joResult, "countRevokedCerts", (uint32_t)crlStoreItem->countRevokedCerts()));
 
     if (crlStoreItem->baAuthorityKeyId) {
-        DO_JSON(json_object_set_hex(joResult, "authorityKeyId", crlStoreItem->baAuthorityKeyId));
+        DO(json_object_set_hex(joResult, "authorityKeyId", crlStoreItem->baAuthorityKeyId));
     }
 
-    DO_JSON(json_object_set_hex(joResult, "crlNumber", crlStoreItem->baCrlNumber));
+    DO(json_object_set_hex(joResult, "crlNumber", crlStoreItem->baCrlNumber));
 
     if (crlStoreItem->baDeltaCrl) {
-        DO_JSON(json_object_set_hex(joResult, "deltaCrlIndicator", crlStoreItem->baDeltaCrl));
+        DO(json_object_set_hex(joResult, "deltaCrlIndicator", crlStoreItem->baDeltaCrl));
     }
 
 cleanup:
     return ret;
 }
 
-int CrlStoreUtils::revokedCertsToJson (JSON_Array* jaResult, const CrlStore::Item* crlStoreItem)
+int CrlStoreUtils::revokedCertsToJson (
+        JSON_Array* jaResult,
+        const CrlStore::Item* crlStoreItem
+)
 {
     int ret = RET_OK;
     const RevokedCertificates_t* revoked_certs = nullptr;

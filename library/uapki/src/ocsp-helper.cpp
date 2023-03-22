@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2022, The UAPKI Project Authors.
+ * Copyright (c) 2023, The UAPKI Project Authors.
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions are
@@ -37,6 +37,9 @@
 #include "verify-utils.h"
 
 
+using namespace std;
+
+
 namespace UapkiNS {
 
 namespace Ocsp {
@@ -53,7 +56,7 @@ static const char* RESPONSE_STATUS_STRINGS[8] = {
     "UNAUTHORIZED"
 };
 
-static OcspHelper::OcspRecord ocsp_record_empty;
+static OcspHelper::SingleResponseInfo singleresponseinfo_empty;
 
 
 struct OcspCertId {
@@ -135,7 +138,7 @@ void OcspHelper::reset (void)
     ba_free(m_BaTbsRequestEncoded);
     ba_free(m_BaTbsResponseData);
 
-    m_OcspRecords.clear();
+    m_SingleResponseInfos.clear();
     m_OcspRequest = nullptr;
     m_BasicOcspResp = nullptr;
     m_BaBasicOcspResponse = nullptr;
@@ -154,29 +157,29 @@ int OcspHelper::init (void)
 }
 
 int OcspHelper::addCert (
-        const CerStore::Item* cerIssuer,
-        const CerStore::Item* cerSubject
+        const CerStore::Item* csiIssuer,
+        const CerStore::Item* csiSubject
 )
 {
-    if (!cerSubject) return RET_UAPKI_INVALID_PARAMETER;
+    if (!csiSubject) return RET_UAPKI_INVALID_PARAMETER;
 
-    return addSN(cerIssuer, cerSubject->baSerialNumber);
+    return addSN(csiIssuer, csiSubject->baSerialNumber);
 }
 
 int OcspHelper::addSN (
-        const CerStore::Item* cerIssuer,
+        const CerStore::Item* csiIssuer,
         const ByteArray* baSerialNumber
 )
 {
     int ret = RET_OK;
     OcspCertId cert_id;
 
-    if (!m_OcspRequest || !cerIssuer || !baSerialNumber) return RET_UAPKI_INVALID_PARAMETER;
+    if (!m_OcspRequest || !csiIssuer || !baSerialNumber) return RET_UAPKI_INVALID_PARAMETER;
 
     memset(&cert_id, 0, sizeof(OcspCertId));
     cert_id.hashAlgoParamIsNull = false;
 
-    DO(certid_hashed_issuer(cert_id, cerIssuer));
+    DO(certid_hashed_issuer(cert_id, csiIssuer));
     cert_id.serialNumber = (ByteArray*)baSerialNumber;
 
     DO(ocsprequest_add_certid(*m_OcspRequest, cert_id));
@@ -286,7 +289,7 @@ int OcspHelper::encodeTbsRequest (void)
 int OcspHelper::setSignature (
         const UapkiNS::AlgorithmIdentifier& aidSignature,
         const ByteArray* baSignValue,
-        const std::vector<ByteArray*>& certs
+        const vector<ByteArray*>& certs
 )
 {
     int ret = RET_OK;
@@ -338,6 +341,24 @@ ByteArray* OcspHelper::getRequestEncoded (
         m_BaRequestEncoded = nullptr;
     }
     return rv_ba;
+}
+
+int OcspHelper::parseBasicOcspResponse (
+        const ByteArray* baEncoded
+)
+{
+    int ret = RET_OK;
+
+    if (!baEncoded) return RET_UAPKI_INVALID_PARAMETER;
+
+    CHECK_NOT_NULL(m_BasicOcspResp = (BasicOCSPResponse_t*)asn_decode_ba_with_alloc(get_BasicOCSPResponse_desc(), baEncoded));
+
+    DO(asn_encode_ba(get_ResponseData_desc(), &m_BasicOcspResp->tbsResponseData, &m_BaTbsResponseData));
+
+    DO(asn_decodevalue_gentime(&m_BasicOcspResp->tbsResponseData.producedAt, &m_ProducedAt));
+
+cleanup:
+    return ret;
 }
 
 int OcspHelper::parseResponse (
@@ -435,13 +456,13 @@ cleanup:
     return ret;
 }
 
-const OcspHelper::OcspRecord& OcspHelper::getOcspRecord (
+const OcspHelper::SingleResponseInfo& OcspHelper::getSingleResponseInfo (
         const size_t index
 ) const
 {
-    if (index >= m_OcspRecords.size()) return ocsp_record_empty;
+    if (index >= m_SingleResponseInfos.size()) return singleresponseinfo_empty;
 
-    return m_OcspRecords[index];
+    return m_SingleResponseInfos[index];
 }
 
 int OcspHelper::getResponderId (
@@ -472,6 +493,20 @@ cleanup:
     return ret;
 }
 
+int OcspHelper::getSerialNumberFromCertId (
+        const size_t index,
+        ByteArray** baSerialNumber
+)
+{
+    if (!m_BasicOcspResp) return RET_UAPKI_INVALID_PARAMETER;
+
+    const ResponseData_t* tbs_respdata = &m_BasicOcspResp->tbsResponseData;
+    if (index >= (size_t)tbs_respdata->responses.list.count) return RET_UAPKI_INVALID_PARAMETER;
+
+    const SingleResponse_t* resp = tbs_respdata->responses.list.array[index];
+    return asn_INTEGER2ba(&resp->certID.serialNumber, baSerialNumber);
+}
+
 int OcspHelper::scanSingleResponses (void)
 {
     int ret = RET_OK;
@@ -483,9 +518,9 @@ int OcspHelper::scanSingleResponses (void)
 
     tbs_respdata = &m_BasicOcspResp->tbsResponseData;
     const int cnt_responses = tbs_respdata->responses.list.count;
-    if (cnt_responses <= 0) return RET_UAPKI_INVALID_PARAMETER;
+    if (cnt_responses <= 0) return RET_UAPKI_INVALID_COUNT_ITEMS;
 
-    m_OcspRecords.resize((size_t)cnt_responses);
+    m_SingleResponseInfos.resize((size_t)cnt_responses);
     if (m_OcspRequest) {
         tbs_req = &m_OcspRequest->tbsRequest;
         if (tbs_req->requestList.list.count != cnt_responses) {
@@ -493,9 +528,9 @@ int OcspHelper::scanSingleResponses (void)
         }
     }
 
-    for (size_t i = 0; i < m_OcspRecords.size(); i++) {
+    for (size_t i = 0; i < m_SingleResponseInfos.size(); i++) {
         const SingleResponse_t* resp = tbs_respdata->responses.list.array[i];
-        OcspRecord& ocsp_item = m_OcspRecords[i];
+        SingleResponseInfo& ocsp_item = m_SingleResponseInfos[i];
         uint32_t crl_reason = 0;
 
         if (m_OcspRequest) {
@@ -510,10 +545,10 @@ int OcspHelper::scanSingleResponses (void)
 
         switch (resp->certStatus.present) {
         case CertStatus_PR_good:
-            ocsp_item.status = UapkiNS::CertStatus::GOOD;
+            ocsp_item.certStatus = UapkiNS::CertStatus::GOOD;
             break;
         case CertStatus_PR_revoked:
-            ocsp_item.status = UapkiNS::CertStatus::REVOKED;
+            ocsp_item.certStatus = UapkiNS::CertStatus::REVOKED;
             revoked_info = &resp->certStatus.choice.revoked;
             DO(asn_decodevalue_gentime(&revoked_info->revocationTime, &ocsp_item.msRevocationTime));
             if (revoked_info->revocationReason != nullptr) {
@@ -522,7 +557,7 @@ int OcspHelper::scanSingleResponses (void)
             }
             break;
         case CertStatus_PR_unknown:
-            ocsp_item.status = UapkiNS::CertStatus::UNKNOWN;
+            ocsp_item.certStatus = UapkiNS::CertStatus::UNKNOWN;
             break;
         default:
             SET_ERROR(RET_UAPKI_OCSP_RESPONSE_INVALID);
@@ -539,36 +574,36 @@ cleanup:
 }
 
 int OcspHelper::verifyTbsResponseData (
-        const CerStore::Item* cerResponder,
-        SIGNATURE_VERIFY::STATUS& statusSign
+        const CerStore::Item* csiResponder,
+        SignatureVerifyStatus& statusSign
 )
 {
     int ret = RET_OK;
     ByteArray* ba_signature = nullptr;
     char* s_signalgo = nullptr;
 
-    statusSign = SIGNATURE_VERIFY::STATUS::UNDEFINED;
+    statusSign = SignatureVerifyStatus::UNDEFINED;
     if (!m_BasicOcspResp) return RET_UAPKI_INVALID_PARAMETER;
 
     DO(asn_oid_to_text(&m_BasicOcspResp->signatureAlgorithm.algorithm, &s_signalgo));
 
-    if (cerResponder->algoKeyId == HASH_ALG_GOST34311) {
+    if (csiResponder->algoKeyId == HASH_ALG_GOST34311) {
         DO(asn_decodevalue_bitstring_encap_octet(&m_BasicOcspResp->signature, &ba_signature));
     }
     else {
         DO(asn_BITSTRING2ba(&m_BasicOcspResp->signature, &ba_signature));
     }
 
-    ret = verify_signature(s_signalgo, m_BaTbsResponseData, false, cerResponder->baSPKI, ba_signature);
+    ret = verify_signature(s_signalgo, m_BaTbsResponseData, false, csiResponder->baSPKI, ba_signature);
     switch (ret) {
     case RET_OK:
-        statusSign = SIGNATURE_VERIFY::STATUS::VALID;
+        statusSign = SignatureVerifyStatus::VALID;
         break;
     case RET_VERIFY_FAILED:
-        statusSign = SIGNATURE_VERIFY::STATUS::INVALID;
+        statusSign = SignatureVerifyStatus::INVALID;
         break;
     default:
-        statusSign = SIGNATURE_VERIFY::STATUS::FAILED;
+        statusSign = SignatureVerifyStatus::FAILED;
     }
 
 cleanup:

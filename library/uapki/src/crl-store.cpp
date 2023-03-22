@@ -145,7 +145,7 @@ CrlStore::Item::Item (const CrlType iType)
     , baAuthorityKeyId(nullptr)
     , baCrlNumber(nullptr)
     , baDeltaCrl(nullptr)
-    , statusSign(SIGNATURE_VERIFY::STATUS::UNDEFINED)
+    , statusSign(CerStore::VerifyStatus::UNDEFINED)
     , baCrlIdentifier(nullptr)
 {}
 
@@ -161,7 +161,7 @@ CrlStore::Item::~Item (void)
     ba_free((ByteArray*)baAuthorityKeyId);
     ba_free((ByteArray*)baCrlNumber);
     ba_free((ByteArray*)baDeltaCrl);
-    statusSign = SIGNATURE_VERIFY::STATUS::UNDEFINED;
+    statusSign = CerStore::VerifyStatus::UNDEFINED;
     ba_free((ByteArray*)baCrlIdentifier);
 }
 
@@ -233,7 +233,7 @@ int CrlStore::Item::revokedCerts (
                     extns_get_crl_invalidity_date(revoked_cert->crlEntryExtensions, &invalidity_date);
                 }
 
-                revcert_item = new RevokedCertItem((size_t)i, revocation_date, crl_reason, invalidity_date);
+                revcert_item = new RevokedCertItem(revocation_date, crl_reason, invalidity_date);
                 if (revcert_item) {
                     revokedItems.push_back(revcert_item);
                 }
@@ -257,7 +257,7 @@ int CrlStore::Item::verify (
 
     CHECK_PARAM(cerIssuer != nullptr);
 
-    if (statusSign == SIGNATURE_VERIFY::STATUS::UNDEFINED) {
+    if (statusSign == CerStore::VerifyStatus::UNDEFINED) {
         CHECK_NOT_NULL(x509_tbs = (X509Tbs_t*)asn_decode_ba_with_alloc(get_X509Tbs_desc(), baEncoded));
         CHECK_NOT_NULL(ba_tbs = ba_alloc_from_uint8(x509_tbs->tbsData.buf, x509_tbs->tbsData.size));
 
@@ -273,13 +273,13 @@ int CrlStore::Item::verify (
         ret = verify_signature(s_signalgo, ba_tbs, false, cerIssuer->baSPKI, ba_signature);
         switch (ret) {
         case RET_OK:
-            statusSign = SIGNATURE_VERIFY::STATUS::VALID;
+            statusSign = CerStore::VerifyStatus::VALID;
             break;
         case RET_VERIFY_FAILED:
-            statusSign = SIGNATURE_VERIFY::STATUS::INVALID;
+            statusSign = CerStore::VerifyStatus::INVALID;
             break;
         default:
-            statusSign = SIGNATURE_VERIFY::STATUS::FAILED;
+            statusSign = CerStore::VerifyStatus::FAILED;
         }
     }
     else {
@@ -477,16 +477,42 @@ const char* CrlStore::crlReasonToStr (
     return CRL_REASON_STRINGS[(idx < 12) ? idx : 0];
 }
 
-const CrlStore::RevokedCertItem* CrlStore::foundNearAfter (
+int CrlStore::decodeCrlIdentifier (
+        const ByteArray* baEncoded,
+        ByteArray** baIssuer,
+        uint64_t& msIssuedTime,
+        ByteArray** baCrlNumber
+)
+{
+    int ret = RET_OK;
+    CrlIdentifier_t* crl_identifier = nullptr;
+
+    CHECK_NOT_NULL(crl_identifier = (CrlIdentifier_t*)asn_decode_ba_with_alloc(get_CrlIdentifier_desc(), baEncoded));
+
+    //  =crlIssuer=
+    DO(asn_encode_ba(get_Name_desc(), &crl_identifier->crlissuer, baIssuer));
+    //  =crlIssuedTime=
+    DO(asn_decodevalue_utctime(&crl_identifier->crlIssuedTime, &msIssuedTime));
+    //  =crlNumber= (optional)
+    if (crl_identifier->crlNumber) {
+        DO(asn_INTEGER2ba(crl_identifier->crlNumber, baCrlNumber));
+    }
+
+cleanup:
+    asn_free(get_CrlIdentifier_desc(), crl_identifier);
+    return ret;
+}
+
+const CrlStore::RevokedCertItem* CrlStore::findNearBefore (
         const vector<const RevokedCertItem*>& revokedItems,
-        const uint64_t validityTime
+        const uint64_t validateTime
 )
 {
     const RevokedCertItem* rv_item = nullptr;
     if (!revokedItems.empty()) {
         //  Search first near
         for (auto& it : revokedItems) {
-            if (validityTime < it->getDate()) {
+            if (validateTime > it->getDate()) {
                 rv_item = it;
                 break;
             }
@@ -498,7 +524,7 @@ const CrlStore::RevokedCertItem* CrlStore::foundNearAfter (
             for (auto& it : revokedItems) {
                 if (it != rv_item) {
                     const uint64_t cur_date = it->getDate();
-                    if ((validityTime < cur_date) && (cur_date < near_date)) {
+                    if ((validateTime > cur_date) && (cur_date > near_date)) {
                         near_date = rv_item->getDate();
                         rv_item = it;
                     }
@@ -509,36 +535,43 @@ const CrlStore::RevokedCertItem* CrlStore::foundNearAfter (
     return rv_item;
 }
 
-const CrlStore::RevokedCertItem* CrlStore::foundNearBefore (
+bool CrlStore::findRevokedCert (
         const vector<const RevokedCertItem*>& revokedItems,
-        const uint64_t validityTime
+        const uint64_t validateTime,
+        UapkiNS::CertStatus& status,
+        RevokedCertItem& revokedCertItem
 )
 {
-    const RevokedCertItem* rv_item = nullptr;
-    if (!revokedItems.empty()) {
-        //  Search first near
-        for (auto& it : revokedItems) {
-            if (validityTime > it->getDate()) {
-                rv_item = it;
+    bool rv_isfound = false;
+    if (revokedItems.empty()) {
+        status = UapkiNS::CertStatus::GOOD;
+    }
+    else {
+        const CrlStore::RevokedCertItem* revcert_before = CrlStore::findNearBefore(revokedItems, validateTime);
+        if (revcert_before) {
+            DEBUG_OUTCON(printf("revocationDate: %lld  crlReason: %i  invalidityDate: %lld\n",
+                revcert_before->revocationDate, revcert_before->crlReason, revcert_before->invalidityDate));
+            switch (revcert_before->crlReason) {
+            case UapkiNS::CrlReason::REMOVE_FROM_CRL:
+                status = UapkiNS::CertStatus::GOOD;
+                break;
+            case UapkiNS::CrlReason::UNDEFINED:
+                status = UapkiNS::CertStatus::UNDEFINED;
+                break;
+            case UapkiNS::CrlReason::UNSPECIFIED:
+                status = UapkiNS::CertStatus::UNKNOWN;
+                break;
+            default:
+                status = UapkiNS::CertStatus::REVOKED;
                 break;
             }
+            rv_isfound = true;
         }
-
-        //  Search nearest
-        if (rv_item) {
-            uint64_t near_date = rv_item->getDate();
-            for (auto& it : revokedItems) {
-                if (it != rv_item) {
-                    const uint64_t cur_date = it->getDate();
-                    if ((validityTime > cur_date) && (cur_date > near_date)) {
-                        near_date = rv_item->getDate();
-                        rv_item = it;
-                    }
-                }
-            }
+        else {
+            status = UapkiNS::CertStatus::GOOD;
         }
     }
-    return rv_item;
+    return rv_isfound;
 }
 
 int CrlStore::parseCrl (

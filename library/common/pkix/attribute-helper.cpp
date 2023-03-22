@@ -25,7 +25,7 @@
  * SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 
-//  Last update: 2023-01-30
+//  Last update: 2023-02-24
 
 
 #include "attribute-helper.h"
@@ -57,7 +57,10 @@ namespace UapkiNS {
 namespace AttributeHelper {
 
 
-int decodeCertValues (const ByteArray* baEncoded, vector<ByteArray*>& certValues)
+int decodeCertValues (
+        const ByteArray* baEncoded,
+        vector<ByteArray*>& certValues
+)
 {
     int ret = RET_OK;
     Certificates_t* cert_values = nullptr;
@@ -76,7 +79,10 @@ cleanup:
     return ret;
 }
 
-int decodeCertificateRefs (const ByteArray* baEncoded, vector<OtherCertId>& otherCertIds)
+int decodeCertificateRefs (
+        const ByteArray* baEncoded,
+        vector<OtherCertId>& otherCertIds
+)
 {
     int ret = RET_OK;
     CompleteCertificateRefs_t* cert_refs = nullptr;
@@ -117,7 +123,10 @@ cleanup:
     return ret;
 }
 
-int decodeContentType (const ByteArray* baEncoded, string& contentType)
+int decodeContentType (
+        const ByteArray* baEncoded,
+        string& contentType
+)
 {
     int ret = RET_OK;
     char* s_contenttype = nullptr;
@@ -130,12 +139,48 @@ cleanup:
     return ret;
 }
 
-int decodeMessageDigest (const ByteArray* baEncoded, ByteArray** baMessageDigest)
+int decodeMessageDigest (
+        const ByteArray* baEncoded,
+        ByteArray** baMessageDigest
+)
 {
     return ba_decode_octetstring(baEncoded, baMessageDigest);
 }
 
-int decodeSignaturePolicy (const ByteArray* baEncoded, string& sigPolicyId)
+int decodeOtherHash (
+        const ByteArray* baEncoded,
+        OtherHash& otherHash
+)
+{
+    int ret = RET_OK;
+    OtherHash_t* other_hash;
+
+    CHECK_NOT_NULL(other_hash = (OtherHash_t*)asn_decode_ba_with_alloc(get_OtherHash_desc(), baEncoded));
+
+    switch (other_hash->present) {
+    case OtherHash_PR_sha1Hash:
+        //  =sha1Hash= (default: id-sha1)
+        otherHash.hashAlgorithm.algorithm = string(OID_SHA1);
+        DO(asn_OCTSTRING2ba(&other_hash->choice.sha1Hash, &otherHash.baHashValue));
+        break;
+    case OtherHash_PR_otherHash:
+        //  =otherHash=
+        DO(Util::algorithmIdentifierFromAsn1(other_hash->choice.otherHash.hashAlgorithm, otherHash.hashAlgorithm));
+        DO(asn_OCTSTRING2ba(&other_hash->choice.otherHash.hashValue, &otherHash.baHashValue));
+        break;
+    default:
+        SET_ERROR(RET_UAPKI_INVALID_STRUCT);
+    }
+
+cleanup:
+    asn_free(get_OtherHash_desc(), other_hash);
+    return ret;
+}
+
+int decodeSignaturePolicy (
+        const ByteArray* baEncoded,
+        string& sigPolicyId
+)
 {
     //  Note: current implementation ignore params sigPolicyHash and sigPolicyQualifiers (rfc3126)
     int ret = RET_OK;
@@ -163,7 +208,10 @@ cleanup:
     return ret;
 }
 
-int decodeSigningCertificate (const ByteArray* baEncoded, vector<EssCertId>& essCertIds)
+int decodeSigningCertificate (
+        const ByteArray* baEncoded,
+        vector<EssCertId>& essCertIds
+)
 {
     int ret = RET_OK;
     SigningCertificateV2_t* signing_cert = nullptr;
@@ -203,7 +251,10 @@ cleanup:
     return ret;
 }
 
-int decodeSigningTime (const ByteArray* baEncoded, uint64_t& signingTime)
+int decodeSigningTime (
+        const ByteArray* baEncoded,
+        uint64_t& signingTime
+)
 {
     return ba_decode_pkixtime(baEncoded, &signingTime);
 }

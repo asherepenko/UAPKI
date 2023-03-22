@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2022, The UAPKI Project Authors.
+ * Copyright (c) 2023, The UAPKI Project Authors.
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions are
@@ -29,7 +29,6 @@
 #define UAPKI_NS_OCSP_HELPER_H
 
 
-#include <vector>
 #include "byte-array.h"
 #include "cer-store.h"
 #include "crl-store.h"
@@ -66,26 +65,26 @@ namespace Ocsp {
     class OcspHelper
     {
     public:
-        struct OcspRecord {
-            UapkiNS::CertStatus
-                        status;
+        struct SingleResponseInfo {
+            CertStatus  certStatus;
             uint64_t    msThisUpdate;
             uint64_t    msNextUpdate;
             uint64_t    msRevocationTime;
-            UapkiNS::CrlReason
-                        revocationReason;
-            OcspRecord (void)
-                : status(UapkiNS::CertStatus::UNDEFINED)
+            CrlReason   revocationReason;
+
+            SingleResponseInfo (void)
+                : certStatus(CertStatus::UNDEFINED)
                 , msThisUpdate(0)
                 , msNextUpdate(0)
                 , msRevocationTime(0)
-                , revocationReason(UapkiNS::CrlReason::UNDEFINED)
+                , revocationReason(CrlReason::UNDEFINED)
             {}
-        };  //  end struct OcspRecord
+
+        };  //  end struct SingleResponseInfo
 
     private:
-        std::vector<OcspRecord>
-                    m_OcspRecords;
+        std::vector<SingleResponseInfo>
+                    m_SingleResponseInfos;
         OCSPRequest_t*
                     m_OcspRequest;
         BasicOCSPResponse_t*
@@ -107,11 +106,11 @@ namespace Ocsp {
 
         int init (void);
         int addCert (
-            const CerStore::Item* cerIssuer,
-            const CerStore::Item* cerSubject
+            const CerStore::Item* csiIssuer,
+            const CerStore::Item* csiSubject
         );
         int addSN (
-            const CerStore::Item* cerIssuer,
+            const CerStore::Item* csiIssuer,
             const ByteArray* baSerialNumber
         );
         int genNonce (
@@ -133,6 +132,9 @@ namespace Ocsp {
             const bool move = false
         );
 
+        int parseBasicOcspResponse (
+            const ByteArray* baEncoded
+        );
         int parseResponse (
             const ByteArray* baEncoded
         );
@@ -146,31 +148,72 @@ namespace Ocsp {
         int getOcspIdentifier (     //  Note: used for complete-revocation-references Attribute (rfc5126, $6.2.2)
             ByteArray** baOcspIdentifier
         );
-        const OcspRecord& getOcspRecord (
+        const SingleResponseInfo& getSingleResponseInfo (
             const size_t index
         ) const;
         int getResponderId (
             ResponderIdType &responderIdType,
             ByteArray** baResponderId
         );
+        int getSerialNumberFromCertId (
+            const size_t index,
+            ByteArray** baSerialNumber
+        );
         int scanSingleResponses (void);
         int verifyTbsResponseData (
-            const CerStore::Item* cerResponder,
-            SIGNATURE_VERIFY::STATUS& statusSign
+            const CerStore::Item* csiResponder,
+            SignatureVerifyStatus& statusSign
         );
 
-        const size_t countOcspRecords (void) const { return m_OcspRecords.size(); };
-        const ByteArray* getNonce (void) const { return m_BaNonce; }
-        uint64_t getProducedAt (void) const { return m_ProducedAt; }
-        ResponseStatus getResponseStatus (void) const { return m_ResponseStatus; }
-        const ByteArray* getTbsRequestEncoded (void) const { return m_BaTbsRequestEncoded; }
-        const ByteArray* getTbsResponseData (void) const { return m_BaTbsResponseData; }
+    public:
+        const size_t countSingleResponses (void) const {
+            return m_SingleResponseInfos.size();
+        };
+        const ByteArray* getNonce (void) const {
+            return m_BaNonce;
+        }
+        uint64_t getProducedAt (void) const {
+            return m_ProducedAt;
+        }
+        ResponseStatus getResponseStatus (void) const {
+            return m_ResponseStatus;
+        }
+        const ByteArray* getTbsRequestEncoded (void) const {
+            return m_BaTbsRequestEncoded;
+        }
+        const ByteArray* getTbsResponseData (void) const {
+            return m_BaTbsResponseData;
+        }
 
     public:
         int addNonceToExtension (void);
         int parseOcspResponse (const ByteArray* baEncoded);
 
     };  //  end class OcspHelper
+
+    struct ResponseInfo {
+        ResponseStatus
+                    responseStatus;
+        ResponderIdType
+                    responderIdType;
+        SmartBA     baResponderId;
+        uint64_t    msProducedAt;
+        OcspHelper::SingleResponseInfo
+                    singleResponseInfo;
+        SignatureVerifyStatus
+                    statusSignature;
+        CerStore::Item*
+                    csiResponder;
+
+        ResponseInfo (void)
+        : responseStatus(ResponseStatus::UNDEFINED)
+        , responderIdType(ResponderIdType::UNDEFINED)
+        , msProducedAt(0)
+        , statusSignature(SignatureVerifyStatus::UNDEFINED)
+        , csiResponder(nullptr)
+        {}
+
+    };  //  end struct ResponseInfo
 
     int generateOtherHash (
         const ByteArray* baOcspResponseEncoded,

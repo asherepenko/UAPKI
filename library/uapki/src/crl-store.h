@@ -29,16 +29,9 @@
 #define UAPKI_CRL_STORE_H
 
 #include "cer-store.h"
-#include "uapkic.h"
-#include "uapkif.h"
 #include "uapki-export.h"
 #include "uapki-ns.h"
 #include "verify-status.h"
-#include <string>
-#include <vector>
-
-
-using namespace std;
 
 
 class CrlStore {
@@ -57,20 +50,17 @@ public:
     };  //  end enum CrlType
 
     struct RevokedCertItem {
-        size_t      index;
         uint64_t    revocationDate;
         UapkiNS::CrlReason
                     crlReason;
         uint64_t    invalidityDate;
 
         RevokedCertItem (
-            const size_t iIndex,
             const uint64_t iRevocationDate = 0,
             const UapkiNS::CrlReason iCrlReason = UapkiNS::CrlReason::UNDEFINED,
             const uint64_t iInvalidityDate = 0
         )
-            : index(iIndex)
-            , revocationDate(iRevocationDate)
+            : revocationDate(iRevocationDate)
             , crlReason(iCrlReason)
             , invalidityDate(iInvalidityDate)
         {}
@@ -96,7 +86,7 @@ public:
                     baCrlNumber;
         const ByteArray*
                     baDeltaCrl;
-        SIGNATURE_VERIFY::STATUS
+        CerStore::VerifyStatus
                     statusSign;
         UapkiNS::OtherHash
                     crlHash;
@@ -112,7 +102,7 @@ public:
         );
         int revokedCerts (
             const CerStore::Item* cerSubject,
-            vector<const RevokedCertItem*>& revokedItems
+            std::vector<const RevokedCertItem*>& revokedItems
         );
         int verify (
             const CerStore::Item* cerIssuer
@@ -120,8 +110,9 @@ public:
     };  //  end struct Item
 
 private:
-    string          m_Path;
-    vector<Item*>   m_Items;
+    std::string m_Path;
+    std::vector<Item*>
+                m_Items;
 
 public:
     CrlStore (void);
@@ -157,13 +148,21 @@ public:
     static const char* crlReasonToStr (
         const UapkiNS::CrlReason reason
     );
-    static const RevokedCertItem* foundNearAfter (
-        const vector<const RevokedCertItem*>& revokedItems,
-        const uint64_t validityTime
+    static int decodeCrlIdentifier (
+        const ByteArray* baEncoded,
+        ByteArray** baIssuer,
+        uint64_t& issuedTime,
+        ByteArray** baCrlNumber
     );
-    static const RevokedCertItem* foundNearBefore (
-        const vector<const RevokedCertItem*>& revokedItems,
-        const uint64_t validityTime
+    static const RevokedCertItem* findNearBefore (
+        const std::vector<const RevokedCertItem*>& revokedItems,
+        const uint64_t validateTime
+    );
+    static bool findRevokedCert (
+        const std::vector<const RevokedCertItem*>& revokedItems,
+        const uint64_t validateTime,
+        UapkiNS::CertStatus& status,
+        RevokedCertItem& revokedCertItem
     );
     static int parseCrl (
         const ByteArray* baEncoded,
