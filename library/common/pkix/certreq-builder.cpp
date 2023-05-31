@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2022, The UAPKI Project Authors.
+ * Copyright (c) 2023, The UAPKI Project Authors.
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions are
@@ -26,14 +26,12 @@
  */
 
 #include "certreq-builder.h"
-#include "asn1-ba-utils.h"
 #include "ba-utils.h"
-#include "attribute-utils.h"
 #include "dstu-ns.h"
-#include "extension-utils.h"
 #include "macros-internal.h"
 #include "oid-utils.h"
 #include "uapki-errors.h"
+#include "uapki-ns-util.h"
 #include <stdio.h>
 
 
@@ -42,6 +40,8 @@
 #define DEBUG_OUTCON(expression) expression
 #endif
 
+
+using namespace std;
 
 namespace UapkiNS {
 
@@ -62,7 +62,9 @@ CertReqBuilder::~CertReqBuilder (void)
     ba_free(m_BaCsrEncoded);
 }
 
-int CertReqBuilder::init (const uint32_t version)
+int CertReqBuilder::init (
+        const uint32_t version
+)
 {
     if (version < 1) return RET_UAPKI_INVALID_PARAMETER;
 
@@ -74,14 +76,18 @@ int CertReqBuilder::init (const uint32_t version)
     return ret;
 }
 
-int CertReqBuilder::setSubject (const ByteArray* baNameEncoded)
+int CertReqBuilder::setSubject (
+        const ByteArray* baNameEncoded
+)
 {
     if (!m_TbsCsrInfo || (ba_get_len(baNameEncoded) == 0)) return RET_UAPKI_INVALID_PARAMETER;
 
     return asn_decode_ba(get_Name_desc(), &m_TbsCsrInfo->subject, baNameEncoded);
 }
 
-int CertReqBuilder::setSubject (const vector<UapkiNS::RdName>& rdNames)
+int CertReqBuilder::setSubject (
+        const vector<UapkiNS::RdName>& rdNames
+)
 {
     int ret = RET_OK;
 
@@ -96,7 +102,9 @@ cleanup:
     return ret;
 }
 
-int CertReqBuilder::setSubjectPublicKeyInfo (const ByteArray* baSpkiEncoded)
+int CertReqBuilder::setSubjectPublicKeyInfo (
+        const ByteArray* baSpkiEncoded
+)
 {
     int ret = RET_OK;
     char* s_keyalgo = nullptr;
@@ -113,7 +121,10 @@ cleanup:
     return ret;
 }
 
-int CertReqBuilder::setSubjectPublicKeyInfo (const ByteArray* baAlgoId, const ByteArray* baSubjectPublicKey)
+int CertReqBuilder::setSubjectPublicKeyInfo (
+        const ByteArray* baAlgoId,
+        const ByteArray* baSubjectPublicKey
+)
 {
     int ret = RET_OK;
     char* s_keyalgo = nullptr;
@@ -139,7 +150,10 @@ cleanup:
     return ret;
 }
 
-int CertReqBuilder::setSubjectPublicKeyInfo (const UapkiNS::AlgorithmIdentifier& algorithm, const ByteArray* baSubjectPublicKey)
+int CertReqBuilder::setSubjectPublicKeyInfo (
+        const UapkiNS::AlgorithmIdentifier& algorithm,
+        const ByteArray* baSubjectPublicKey
+)
 {
     int ret = RET_OK;
 
@@ -165,20 +179,52 @@ cleanup:
     return ret;
 }
 
-int CertReqBuilder::addExtensions (const vector<UapkiNS::Extension>& extensions)
+int CertReqBuilder::addExtensions (
+        const ByteArray* baExtensionsEncoded
+)
 {
     int ret = RET_OK;
-    ByteArray* ba_extnvalue = nullptr;
+    SmartBA sba_extnvalue;
 
     if (!m_TbsCsrInfo) return RET_UAPKI_INVALID_PARAMETER;
 
-    if (!extensions.empty()) {
-        DO(encodeExtensions(extensions, &ba_extnvalue));
-        DO(attrs_add_attribute(&m_TbsCsrInfo->attributes, OID_PKCS9_EXTENSION_REQUEST, ba_extnvalue));
+    if (baExtensionsEncoded) {
+        DO(Util::addToAttributes(&m_TbsCsrInfo->attributes, OID_PKCS9_EXTENSION_REQUEST, baExtensionsEncoded));
     }
 
 cleanup:
-    ba_free(ba_extnvalue);
+    return ret;
+}
+
+int CertReqBuilder::addExtensions (
+        const vector<UapkiNS::Extension>& extensions
+)
+{
+    int ret = RET_OK;
+    SmartBA sba_extnvalue;
+
+    if (!extensions.empty()) {
+        DO(encodeExtensions(extensions, &sba_extnvalue));
+        DO(addExtensions(sba_extnvalue.get()));
+    }
+
+cleanup:
+    return ret;
+}
+
+int CertReqBuilder::addExtensions (
+        const vector<ByteArray*>& vbaEncodedExtensions
+)
+{
+    int ret = RET_OK;
+    SmartBA sba_extnvalue;
+
+    if (!vbaEncodedExtensions.empty()) {
+        DO(encodeExtensions(vbaEncodedExtensions, &sba_extnvalue));
+        DO(addExtensions(sba_extnvalue.get()));
+    }
+
+cleanup:
     return ret;
 }
 
@@ -189,7 +235,11 @@ int CertReqBuilder::encodeTbs (void)
     return asn_encode_ba(get_CertificationRequestInfo_desc(), m_TbsCsrInfo, &m_BaTbsEncoded);
 }
 
-int CertReqBuilder::encodeCertRequest (const char* signAlgo, const ByteArray* baSignAlgoParam, const ByteArray* baSignature)
+int CertReqBuilder::encodeCertRequest (
+        const char* signAlgo,
+        const ByteArray* baSignAlgoParam,
+        const ByteArray* baSignature
+)
 {
     int ret = RET_OK;
     X509Tbs_t* csr = nullptr;
@@ -224,14 +274,19 @@ cleanup:
     return ret;
 }
 
-int CertReqBuilder::encodeCertRequest (const UapkiNS::AlgorithmIdentifier& aidSignature, const ByteArray* baSignature)
+int CertReqBuilder::encodeCertRequest (
+        const UapkiNS::AlgorithmIdentifier& aidSignature,
+        const ByteArray* baSignature
+)
 {
     if (!aidSignature.isPresent()) return RET_UAPKI_INVALID_PARAMETER;
 
     return encodeCertRequest(aidSignature.algorithm.c_str(), aidSignature.baParameters, baSignature);
 }
 
-ByteArray* CertReqBuilder::getCsrEncoded (const bool move)
+ByteArray* CertReqBuilder::getCsrEncoded (
+        const bool move
+)
 {
     ByteArray* rv_ba = m_BaCsrEncoded;
     if (move) {
@@ -240,7 +295,10 @@ ByteArray* CertReqBuilder::getCsrEncoded (const bool move)
     return rv_ba;
 }
 
-int CertReqBuilder::encodeExtensions (const vector<UapkiNS::Extension>& extensions, ByteArray** baEncoded)
+int CertReqBuilder::encodeExtensions (
+        const vector<UapkiNS::Extension>& extensions,
+        ByteArray** baEncoded
+)
 {
     int ret = RET_OK;
     Extensions_t* extns = nullptr;
@@ -248,7 +306,7 @@ int CertReqBuilder::encodeExtensions (const vector<UapkiNS::Extension>& extensio
     ASN_ALLOC_TYPE(extns, Extensions_t);
 
     for (auto& it : extensions) {
-        DO(extns_add_extension(extns, it.extnId.c_str(), it.critical, it.baExtnValue));
+        DO(Util::addToExtensions(extns, it.extnId.c_str(), it.critical, it.baExtnValue));
     }
 
     DO(asn_encode_ba(get_Extensions_desc(), extns, baEncoded));
@@ -258,7 +316,33 @@ cleanup:
     return ret;
 }
 
-int CertReqBuilder::nameAddRdName (Name_t* name, const UapkiNS::RdName& rdName)
+int CertReqBuilder::encodeExtensions (
+        const vector<ByteArray*>& vbaEncodedExtensions,
+        ByteArray** baEncoded
+)
+{
+    int ret = RET_OK;
+    Extensions_t* extns = nullptr;
+
+    ASN_ALLOC_TYPE(extns, Extensions_t);
+
+    for (auto& it : vbaEncodedExtensions) {
+        UapkiNS::Extension extn;
+        DO(Util::decodeExtension(it, extn));
+        DO(Util::addToExtensions(extns, extn.extnId.c_str(), extn.critical, extn.baExtnValue));
+    }
+
+    DO(asn_encode_ba(get_Extensions_desc(), extns, baEncoded));
+
+cleanup:
+    asn_free(get_Extensions_desc(), extns);
+    return ret;
+}
+
+int CertReqBuilder::nameAddRdName (
+        Name_t* name,
+        const UapkiNS::RdName& rdName
+)
 {
     int ret = RET_OK;
     RelativeDistinguishedName_t* rdname = nullptr;
@@ -271,10 +355,10 @@ int CertReqBuilder::nameAddRdName (Name_t* name, const UapkiNS::RdName& rdName)
     DO(asn_set_oid_from_text(rdName.type.c_str(), &atav->type));
     switch (rdName.stringType) {
     case UapkiNS::RdName::StringType::PRINTABLE:
-        DO(ba_encode_printablestring(rdName.value.c_str(), &ba_encoded));
+        DO(Util::encodePrintableString(rdName.value.c_str(), &ba_encoded));
         break;
     case UapkiNS::RdName::StringType::UTF8:
-        DO(ba_encode_utf8string(rdName.value.c_str(), &ba_encoded));
+        DO(Util::encodeUtf8string(rdName.value.c_str(), &ba_encoded));
         break;
     default:
         SET_ERROR(RET_UAPKI_NOT_SUPPORTED);

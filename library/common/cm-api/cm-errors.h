@@ -1,27 +1,27 @@
 /*
- * Copyright (c) 2021, The UAPKI Project Authors.
- * 
- * Redistribution and use in source and binary forms, with or without 
- * modification, are permitted provided that the following conditions are 
+ * Copyright (c) 2023, The UAPKI Project Authors.
+ *
+ * Redistribution and use in source and binary forms, with or without
+ * modification, are permitted provided that the following conditions are
  * met:
- * 
- * 1. Redistributions of source code must retain the above copyright 
+ *
+ * 1. Redistributions of source code must retain the above copyright
  * notice, this list of conditions and the following disclaimer.
- * 
- * 2. Redistributions in binary form must reproduce the above copyright 
- * notice, this list of conditions and the following disclaimer in the 
+ *
+ * 2. Redistributions in binary form must reproduce the above copyright
+ * notice, this list of conditions and the following disclaimer in the
  * documentation and/or other materials provided with the distribution.
- * 
- * THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS 
- * IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED 
- * TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A 
- * PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT 
- * HOLDER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, 
- * SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED 
- * TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE, DATA, OR 
- * PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF 
- * LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING 
- * NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS 
+ *
+ * THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS
+ * IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED
+ * TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A
+ * PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT
+ * HOLDER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL,
+ * SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED
+ * TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE, DATA, OR
+ * PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF
+ * LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING
+ * NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS
  * SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 
@@ -70,7 +70,7 @@
 #define RET_CM_UNSUPPORTED_KEY_CONTAINER             (CM_ERROR_NAME_CODE | 0x00000022)
 #define RET_CM_UNSUPPORTED_FORMAT                    (CM_ERROR_NAME_CODE | 0x00000023)
 #define RET_CM_CONNECTION_ERROR                      (CM_ERROR_NAME_CODE | 0x00000024)
-#define RET_CM_RESPONSE_INVALID                      (CM_ERROR_NAME_CODE | 0x00000025)
+#define RET_CM_INVALID_RESPONSE                      (CM_ERROR_NAME_CODE | 0x00000025)
 #define RET_CM_RESPONSE_ERROR                        (CM_ERROR_NAME_CODE | 0x00000026)
 #define RET_CM_ACCESS_DENIED                         (CM_ERROR_NAME_CODE | 0x00000027)
 #define RET_CM_JSON_FAILURE                          (CM_ERROR_NAME_CODE | 0x00000028)
@@ -79,8 +79,8 @@
 #define RET_CM_TOKEN_NO_FREE_SESSIONS                (CM_ERROR_NAME_CODE | 0x0000002B)
 #define RET_CM_TOKEN_NO_FREE_SPACE                   (CM_ERROR_NAME_CODE | 0x0000002C)
 #define RET_CM_TOKEN_ALREADY_LOGGED                  (CM_ERROR_NAME_CODE | 0x0000002D)
-#define RET_CM_TOKEN_NOT_LOGGED                      (CM_ERROR_NAME_CODE | 0x0000002E)
-#define RET_CM_TOKEN_RESERVED                        (CM_ERROR_NAME_CODE | 0x0000002F)
+#define RET_CM_TOKEN_RESERVED                        (CM_ERROR_NAME_CODE | 0x0000002E)
+#define RET_CM_STORAGE_NOT_FOUND                     (CM_ERROR_NAME_CODE | 0x0000002F)
 #define RET_CM_FILE_OPEN_ERROR                       (CM_ERROR_NAME_CODE | 0x00000030)
 #define RET_CM_FILE_READ_ERROR                       (CM_ERROR_NAME_CODE | 0x00000031)
 #define RET_CM_FILE_WRITE_ERROR                      (CM_ERROR_NAME_CODE | 0x00000032)
@@ -88,6 +88,8 @@
 #define RET_CM_DECODE_ASN1_ERROR                     (CM_ERROR_NAME_CODE | 0x00000034)
 #define RET_CM_ENCODE_ASN1_ERROR                     (CM_ERROR_NAME_CODE | 0x00000035)
 #define RET_CM_PASSWORD_NOT_SET                      (CM_ERROR_NAME_CODE | 0x00000036)
+#define RET_CM_INVALID_CERTIFICATE                   (CM_ERROR_NAME_CODE | 0x00000037)
+#define RET_CM_INVALID_KEYID                         (CM_ERROR_NAME_CODE | 0x00000038)
 
 
 #endif

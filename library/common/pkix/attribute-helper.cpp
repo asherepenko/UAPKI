@@ -25,12 +25,10 @@
  * SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 
-//  Last update: 2023-02-24
+//  Last update: 2023-05-01
 
 
 #include "attribute-helper.h"
-#include "asn1-ba-utils.h"
-#include "attribute-utils.h"
 #include "ba-utils.h"
 #include "macros-internal.h"
 #include "oids.h"
@@ -131,7 +129,7 @@ int decodeContentType (
     int ret = RET_OK;
     char* s_contenttype = nullptr;
 
-    DO(ba_decode_oid(baEncoded, &s_contenttype));
+    DO(UapkiNS::Util::decodeOid(baEncoded, &s_contenttype));
     contentType = string(s_contenttype);
 
 cleanup:
@@ -144,7 +142,7 @@ int decodeMessageDigest (
         ByteArray** baMessageDigest
 )
 {
-    return ba_decode_octetstring(baEncoded, baMessageDigest);
+    return UapkiNS::Util::decodeOctetString(baEncoded, baMessageDigest);
 }
 
 int decodeOtherHash (
@@ -256,7 +254,7 @@ int decodeSigningTime (
         uint64_t& signingTime
 )
 {
-    return ba_decode_pkixtime(baEncoded, &signingTime);
+    return Util::decodePkixTime(baEncoded, signingTime);
 }
 
 int encodeAttribute (

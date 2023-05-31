@@ -1,5 +1,5 @@
 ﻿/*
- * Copyright (c) 2022, The UAPKI Project Authors.
+ * Copyright (c) 2023, The UAPKI Project Authors.
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions are
@@ -28,7 +28,7 @@
 #include "api-json-internal.h"
 #include "global-objects.h"
 #include "parson-helper.h"
-#include "time-utils.h"
+#include "time-util.h"
 
 #undef FILE_MARKER
 #define FILE_MARKER "api/api-json.cpp"
@@ -156,6 +156,9 @@ UAPKI_EXPORT char* process (const char* request)
     else if (strcmp(s_method, "ENCRYPT") == 0) {
         err_code = uapki_encrypt(jo_params, jo_result);
     }
+    else if (strcmp(s_method, "RANDOM_BYTES") == 0) {
+        err_code = uapki_random_bytes(jo_params, jo_result);
+    }
     else {
         err_code = RET_UAPKI_INVALID_METHOD;
     }
@@ -166,7 +169,7 @@ cleanup:
         json_result.setString("error", error_code_to_str(err_code));
     }
     if (ParsonHelper::jsonObjectGetBoolean(jo_params, "reportTime", false)) {
-        const string s_time = TimeUtils::mstimeToFormat(TimeUtils::nowMsTime());
+        const string s_time = TimeUtil::mtimeToFtime(TimeUtil::mtimeNow());
         json_object_set_string(jo_result, "reportTime", s_time.c_str());
     }
     json_result.serialize(&rv_sjson);
